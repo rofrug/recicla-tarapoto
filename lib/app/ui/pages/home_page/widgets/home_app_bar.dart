@@ -17,44 +17,41 @@ class HomeAppBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _HomeAppBarState extends State<HomeAppBar> {
-  // Variable para almacenar el valor de monedas
-  num coinBalance = 0;
-  bool isLoading = true;
+  bool _isOpeningBalanceDialog = false;
   bool isCollector = true;
-  
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
   }
-  
-  // Método para cargar datos de usuario y monedas
+
+  // Método para cargar datos de usuario y (si aplica) disparar el fetch de monedas
   Future<void> _loadUserData() async {
     try {
       final userController = Get.find<UserController>();
       isCollector = userController.userModel.value?.iscollector ?? true;
-      
-      // Si no es recolector, cargamos las monedas
+
+      // Si no es recolector, precarga el saldo (solo una vez al abrir)
       if (!isCollector) {
-        isLoading = true;
-        if (mounted) setState(() {});
-        
         final homeController = Get.find<HomeController>();
-        await homeController.fetchTotalCoins();
-        coinBalance = homeController.totalCoins.value;
-        
-        isLoading = false;
-        if (mounted) setState(() {});
+        // await homeController.fetchTotalCoins();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          homeController.fetchTotalCoins();
+        });
       }
+
+      if (mounted) setState(() {});
     } catch (e) {
       developer.log('Error al cargar datos de usuario: $e', name: 'HomeAppBar');
-      isLoading = false;
       if (mounted) setState(() {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final home = Get.find<HomeController>();
+
     return AppBar(
       automaticallyImplyLeading: false,
       title: Row(
@@ -77,7 +74,6 @@ class _HomeAppBarState extends State<HomeAppBar> {
                 color: Colors.white,
                 iconSize: 33,
                 onPressed: () {
-                  // Mostramos el diálogo de notificaciones
                   showDialog(
                     context: context,
                     builder: (_) => NotificationsDialog(),
@@ -111,27 +107,32 @@ class _HomeAppBarState extends State<HomeAppBar> {
             ],
           ),
         ),
-        // Ícono de balance
-        // Balance Icon
+
+        // Ícono de balance (oculto para recolector)
         Builder(
           builder: (context) {
-            // No mostrar si es recolector
             if (isCollector) {
               return const SizedBox.shrink();
             }
-            
+
             return GestureDetector(
-              onTap: () {
-                developer.log('Tap en icono de balance detectado', name: 'BalanceIcon');
-                // Mostramos el diálogo después que el build termine
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  showDialog(
+              onTap: () async {
+                if (_isOpeningBalanceDialog) return; // evita taps repetidos
+                _isOpeningBalanceDialog = true;
+                try {
+                  // Abre y espera a que se cierre (sin addPostFrameCallback)
+                  await showDialog(
                     context: context,
                     builder: (_) => const BalanceDialog(),
-                  ).catchError((error) {
-                    developer.log('Error al mostrar diálogo: $error', name: 'BalanceIcon');
-                  });
-                });
+                    barrierDismissible: true, // permite cerrar tocando fuera
+                    useSafeArea: true,
+                  );
+                } catch (e) {
+                  developer.log('Error al mostrar diálogo: $e',
+                      name: 'BalanceIcon');
+                } finally {
+                  _isOpeningBalanceDialog = false;
+                }
               },
               child: Padding(
                 padding: const EdgeInsets.only(right: 16.0),
@@ -143,19 +144,26 @@ class _HomeAppBarState extends State<HomeAppBar> {
                       size: 28,
                     ),
                     const SizedBox(width: 4),
-                    isLoading
-                      ? const SizedBox(
+
+                    // 🔹 Reactivo: muestra spinner mientras carga, y luego las monedas en vivo
+                    Obx(() {
+                      if (home.isLoadingCoins.value) {
+                        return const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             color: Colors.white,
                             strokeWidth: 2,
                           ),
-                        )
-                      : Text(
-                          '${coinBalance.toInt()}',
-                          style: const TextStyle(color: Colors.white, fontSize: 16),
-                        ),
+                        );
+                      }
+                      final coins = home.totalCoins.value;
+                      return Text(
+                        coins.toStringAsFixed(0),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 16),
+                      );
+                    }),
                   ],
                 ),
               ),

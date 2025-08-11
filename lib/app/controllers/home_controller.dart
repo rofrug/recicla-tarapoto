@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:flutter/foundation.dart'; // <--- agrega este import
 
 class HomeController extends GetxController {
   // Índice de la pestaña seleccionada
@@ -32,7 +33,7 @@ class HomeController extends GetxController {
       userMap?.addAll(storedUserMap);
     }
 
-    // Llamamos a un método que hace la consulta y suma las monedas
+    // Carga inicial del saldo
     fetchTotalCoins();
   }
 
@@ -41,9 +42,10 @@ class HomeController extends GetxController {
     selectedIndex.value = index;
   }
 
-  /// Consulta las colecciones 'wasteCollections' y 'redeemedIncentives' en Firestore 
+  /// Consulta las colecciones 'wasteCollections' y 'redeemedIncentives' en Firestore
   /// para calcular el saldo de monedas del usuario.
-  /// Saldo = (suma de wasteCollections.totalCoins donde isRecycled == true) - (suma de redeemedIncentives.redeemedCoins)
+  /// Saldo = (suma de wasteCollections.totalCoins donde isRecycled == true)
+  ///         - (suma de redeemedIncentives.redeemedCoins)
   Future<void> fetchTotalCoins() async {
     isLoadingCoins.value = true;
     try {
@@ -79,7 +81,7 @@ class HomeController extends GetxController {
           .get();
 
       for (final doc in redeemedIncentivesSnap.docs) {
-        sumRedeemedIncentives += (doc.data()['redeemedCoins'] as num).toDouble();
+        sumRedeemedIncentives += _toDouble(doc.data()['redeemedCoins']);
       }
 
       // 3) Calcular el total y actualizar el estado
@@ -92,11 +94,34 @@ class HomeController extends GetxController {
     }
   }
 
+  /// Descuenta monedas al instante (UI optimista)
+  /// Devuelve una función para revertir si falla la operación.
+  VoidCallback optimisticDecrease(int amount) {
+    final before = totalCoins.value;
+    final next = (before - amount).clamp(0, double.infinity).toDouble();
+    totalCoins.value = next;
+    return () {
+      totalCoins.value = before;
+    };
+  }
+
+  /// Suma monedas al instante (útil si luego quieres UI optimista al acreditar).
+  void increase(int amount) {
+    totalCoins.value = (totalCoins.value + amount).clamp(0, double.infinity);
+  }
+
+  /// Opcional: refrescar si sospechas que el valor quedó desactualizado
+  Future<void> refreshCoinsIfStale() async {
+    // Puedes poner heurística aquí (tiempo desde último fetch, etc.)
+    await fetchTotalCoins();
+  }
+
   // Conversión genérica a double
   double _toDouble(dynamic value) {
     if (value == null) return 0.0;
     if (value is int) return value.toDouble();
     if (value is double) return value;
+    if (value is num) return value.toDouble();
     if (value is String) {
       return double.tryParse(value) ?? 0.0;
     }

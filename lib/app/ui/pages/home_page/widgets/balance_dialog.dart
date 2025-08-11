@@ -10,19 +10,20 @@ class BalanceDialog extends StatefulWidget {
 }
 
 class _BalanceDialogState extends State<BalanceDialog> {
-
   static const Color primaryGreen = Color(0xFF16A34A);
 
   @override
   void initState() {
     super.initState();
-    // Llama a fetchTotalCoins cada vez que el diálogo se abre.
-    Get.find<HomeController>().fetchTotalCoins();
+    // Antes: Get.find<HomeController>().fetchTotalCoins();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Get.find<HomeController>().fetchTotalCoins();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final homeController = Get.find<HomeController>();
+    final home = Get.find<HomeController>();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -47,7 +48,7 @@ class _BalanceDialogState extends State<BalanceDialog> {
           children: [
             const SizedBox(height: 0),
 
-            // Título y saldo
+            // Título
             const Text(
               "Mis Monedas",
               style: TextStyle(
@@ -58,10 +59,11 @@ class _BalanceDialogState extends State<BalanceDialog> {
             ),
             const SizedBox(height: 0),
 
+            // Saldo (reactivo)
             Obx(() {
-              if (homeController.isLoadingCoins.value) {
+              if (home.isLoadingCoins.value) {
                 return Container(
-                  height: 125, // Height to match the coin display container
+                  height: 125,
                   width: 125,
                   margin: const EdgeInsets.symmetric(vertical: 10),
                   child: const Center(
@@ -72,9 +74,13 @@ class _BalanceDialogState extends State<BalanceDialog> {
                   ),
                 );
               }
-              final coins = homeController.totalCoins.value;
-              return TweenAnimationBuilder(
-                tween: Tween<double>(begin: 0, end: coins.toDouble()),
+
+              final coins = home.totalCoins.value;
+
+              // Animación de conteo al valor actual
+              return TweenAnimationBuilder<double>(
+                key: ValueKey(coins), // fuerza nueva animación al cambiar saldo
+                tween: Tween<double>(begin: 0, end: coins),
                 duration: const Duration(milliseconds: 800),
                 builder: (_, value, __) {
                   return Container(
@@ -109,7 +115,7 @@ class _BalanceDialogState extends State<BalanceDialog> {
             const SizedBox(height: 6),
 
             const Text(
-              "¿Cómo conseguir mas?",
+              "¿Cómo conseguir más?",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -124,7 +130,6 @@ class _BalanceDialogState extends State<BalanceDialog> {
               style: TextStyle(fontSize: 14, color: Colors.black54),
             ),
             const SizedBox(height: 6),
-
 
             // Equivalencias
             _buildEquivalenceList(),

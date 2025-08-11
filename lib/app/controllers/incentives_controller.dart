@@ -11,6 +11,9 @@ import '../data/models/incentive.dart';
 
 import '../data/provider/incentives_provider.dart';
 
+// ✅ Importa HomeController para el saldo reactivo + optimista
+import 'package:recicla_tarapoto_1/app/controllers/home_controller.dart';
+
 class IncentivesController extends GetxController {
   final IncentivesProvider _provider = IncentivesProvider();
 
@@ -42,6 +45,7 @@ class IncentivesController extends GetxController {
   /// - Verifica usuario
   /// - Verifica monedas (pre-chequeo)
   /// - Transacción Firestore: decrementa stock ATÓMICAMENTE y registra el canje
+  /// - UI optimista: descuenta al instante y revierte si falla
   Future<void> redeemIncentive(Incentive incentive) async {
     if (_isRedeeming.value) return; // evita doble tap
     _isRedeeming.value = true;
@@ -63,12 +67,17 @@ class IncentivesController extends GetxController {
 
       // Pre-chequeo de monedas (cálculo actual por sumatorias)
       final double currentCoins = await _getCurrentUserCoins(userId);
-      if (currentCoins < incentive.price) {
+      final int cost = _safeToInt(incentive.price);
+      if (currentCoins < cost) {
         Get.snackbar('Monedas Insuficientes',
             'No tienes suficientes monedas para canjear este incentivo.',
             snackPosition: SnackPosition.TOP);
         return;
       }
+
+      // ✅ UI Optimista: descontar de inmediato en el header/modal
+      final home = Get.find<HomeController>();
+      final revert = home.optimisticDecrease(cost);
 
       // Transacción: asegurar stock y registrar canje
       final incentivesRef =
@@ -105,9 +114,9 @@ class IncentivesController extends GetxController {
           'incentiveId': incentive.id,
           'name': incentive.name,
           'description': incentive.description,
-          'price': incentive.price, // costo en monedas
+          'price': cost, // costo en monedas
           'image': incentive.image,
-          'redeemedCoins': incentive.price,
+          'redeemedCoins': cost,
           'status': 'pendiente',
           'createdAt': FieldValue.serverTimestamp(),
           // extras útiles para auditoría
@@ -121,9 +130,12 @@ class IncentivesController extends GetxController {
           'Has canjeado el incentivo correctamente. Se ha reservado tu unidad.',
           snackPosition: SnackPosition.TOP);
 
-      // La UI se actualiza sola via stream; si quieres, puedes forzar un refresh:
-      // await _provider.forceRefresh(); // opcional si tienes tal método
+      // ✅ Reconciliar contra BD (por si hubo cambios en paralelo)
+      await home.fetchTotalCoins();
     } on FirebaseException catch (e) {
+      // Si falla la transacción, revertir el optimista
+      _safeRevertOptimistic();
+
       if (e.code == 'out-of-stock') {
         Get.snackbar('Sin stock', 'Este incentivo ya no está disponible.',
             snackPosition: SnackPosition.BOTTOM);
@@ -135,7 +147,8 @@ class IncentivesController extends GetxController {
             snackPosition: SnackPosition.BOTTOM);
       }
     } catch (e) {
-      // Fallback de errores inesperados
+      // Revertir ante errores inesperados
+      _safeRevertOptimistic();
       Get.snackbar('Error', 'Ocurrió un error al canjear el incentivo.',
           snackPosition: SnackPosition.TOP);
     } finally {
@@ -189,5 +202,26 @@ class IncentivesController extends GetxController {
 
   Future<void> deleteIncentive(String id) async {
     await _provider.deleteIncentive(id);
+  }
+
+  // ----------------- Helpers privados -----------------
+
+  int _safeToInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    return int.tryParse('$v') ?? 0;
+  }
+
+  void _safeRevertOptimistic() {
+    // Si el HomeController existe, intenta revertir al último optimista.
+    // Nota: optimista devuelve un callback; aquí podemos guardar y llamar.
+    // Para simplificar, dispararemos un refresh total (que también "repara" UI).
+    try {
+      final home = Get.find<HomeController>();
+      home.fetchTotalCoins();
+    } catch (_) {
+      // HomeController no encontrado; no hacemos nada.
+    }
   }
 }
