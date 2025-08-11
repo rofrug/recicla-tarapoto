@@ -3,15 +3,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:flutter/foundation.dart'; // ← para VoidCallback
 
 // Ajusta este import al path real de tu proyecto:
 import '../data/models/incentive.dart';
-// Si realmente lo tienes en data/models, usa:
-// import '../data/models/incentive.dart';
-
 import '../data/provider/incentives_provider.dart';
-
-// ✅ Importa HomeController para el saldo reactivo + optimista
 import 'package:recicla_tarapoto_1/app/controllers/home_controller.dart';
 
 class IncentivesController extends GetxController {
@@ -41,16 +37,21 @@ class IncentivesController extends GetxController {
     });
   }
 
-  /// Canjea un incentivo (1 unidad) con seguridad:
+  /// Canjea un incentivo (1 unidad) con seguridad + UI optimista:
   /// - Verifica usuario
   /// - Verifica monedas (pre-chequeo)
-  /// - Transacción Firestore: decrementa stock ATÓMICAMENTE y registra el canje
-  /// - UI optimista: descuenta al instante y revierte si falla
+  /// - Descuenta al instante en UI (optimista) y revierte si falla
+  /// - Transacción Firestore (stock y registro de canje)
+  /// - Reconciliar saldo al final
   Future<void> redeemIncentive(Incentive incentive) async {
     if (_isRedeeming.value) return; // evita doble tap
     _isRedeeming.value = true;
 
+    VoidCallback? revert; // para revertir el optimista si falla
+    final home = Get.find<HomeController>();
+
     try {
+      // 1) Identidad de usuario
       final Map<String, dynamic>? userData = _box.read('userData');
       if (userData == null) {
         Get.snackbar('Error', 'No se encontró información del usuario',
@@ -65,21 +66,22 @@ class IncentivesController extends GetxController {
         return;
       }
 
-      // Pre-chequeo de monedas (cálculo actual por sumatorias)
+      // 2) Pre‑chequeo de monedas (cálculo actual por sumatorias)
       final double currentCoins = await _getCurrentUserCoins(userId);
       final int cost = _safeToInt(incentive.price);
       if (currentCoins < cost) {
-        Get.snackbar('Monedas Insuficientes',
-            'No tienes suficientes monedas para canjear este incentivo.',
-            snackPosition: SnackPosition.TOP);
+        Get.snackbar(
+          'Monedas Insuficientes',
+          'No tienes suficientes monedas para canjear este incentivo.',
+          snackPosition: SnackPosition.TOP,
+        );
         return;
       }
 
-      // ✅ UI Optimista: descontar de inmediato en el header/modal
-      final home = Get.find<HomeController>();
-      final revert = home.optimisticDecrease(cost);
+      // 3) UI Optimista: descontar al instante en header/modal
+      revert = home.optimisticDecrease(cost);
 
-      // Transacción: asegurar stock y registrar canje
+      // 4) Transacción: asegurar stock y registrar canje
       final incentivesRef =
           FirebaseFirestore.instance.collection('incentives').doc(incentive.id);
       final userRef =
@@ -97,44 +99,41 @@ class IncentivesController extends GetxController {
 
         final data = incSnap.data() as Map<String, dynamic>? ?? {};
         final int currentStock = ((data['stock'] ?? 0) as num).toInt();
-
         if (currentStock <= 0) {
-          // Stock insuficiente: abortar transacción
           throw FirebaseException(
               plugin: 'IncentivesController', code: 'out-of-stock');
         }
 
         // Decrementa stock
-        t.update(incentivesRef, {
-          'stock': FieldValue.increment(-1),
-        });
+        t.update(incentivesRef, {'stock': FieldValue.increment(-1)});
 
-        // Registra el canje (esto "descuenta" monedas en tu modelo por sumatoria)
+        // Registra el canje (esto "descuenta" monedas por sumatoria)
         t.set(redeemedRef, {
           'incentiveId': incentive.id,
           'name': incentive.name,
           'description': incentive.description,
-          'price': cost, // costo en monedas
+          'price': cost,
           'image': incentive.image,
           'redeemedCoins': cost,
           'status': 'pendiente',
           'createdAt': FieldValue.serverTimestamp(),
-          // extras útiles para auditoría
           'incentiveRef': incentivesRef,
           'userRef': userRef,
         });
       });
 
-      // Éxito
-      Get.snackbar('¡Felicidades!',
-          'Has canjeado el incentivo correctamente. Se ha reservado tu unidad.',
-          snackPosition: SnackPosition.TOP);
+      // 5) Éxito
+      Get.snackbar(
+        '¡Felicidades!',
+        'Has canjeado el incentivo correctamente. Se ha reservado tu unidad.',
+        snackPosition: SnackPosition.TOP,
+      );
 
-      // ✅ Reconciliar contra BD (por si hubo cambios en paralelo)
+      // 6) Reconciliar contra BD (por si hubo cambios en paralelo)
       await home.fetchTotalCoins();
     } on FirebaseException catch (e) {
-      // Si falla la transacción, revertir el optimista
-      _safeRevertOptimistic();
+      // 7) Revertir optimista si la transacción falló
+      revert?.call();
 
       if (e.code == 'out-of-stock') {
         Get.snackbar('Sin stock', 'Este incentivo ya no está disponible.',
@@ -146,11 +145,16 @@ class IncentivesController extends GetxController {
         Get.snackbar('Error', 'No se pudo completar el canje (${e.code}).',
             snackPosition: SnackPosition.BOTTOM);
       }
+
+      // Refrescar para quedar consistentes
+      await home.fetchTotalCoins();
     } catch (e) {
-      // Revertir ante errores inesperados
-      _safeRevertOptimistic();
+      // 7) Revertir optimista ante errores inesperados
+      revert?.call();
       Get.snackbar('Error', 'Ocurrió un error al canjear el incentivo.',
           snackPosition: SnackPosition.TOP);
+
+      await home.fetchTotalCoins();
     } finally {
       _isRedeeming.value = false;
     }
@@ -211,17 +215,5 @@ class IncentivesController extends GetxController {
     if (v is double) return v.toInt();
     if (v is num) return v.toInt();
     return int.tryParse('$v') ?? 0;
-  }
-
-  void _safeRevertOptimistic() {
-    // Si el HomeController existe, intenta revertir al último optimista.
-    // Nota: optimista devuelve un callback; aquí podemos guardar y llamar.
-    // Para simplificar, dispararemos un refresh total (que también "repara" UI).
-    try {
-      final home = Get.find<HomeController>();
-      home.fetchTotalCoins();
-    } catch (_) {
-      // HomeController no encontrado; no hacemos nada.
-    }
   }
 }
