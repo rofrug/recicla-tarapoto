@@ -6,6 +6,9 @@ import 'package:recicla_tarapoto_1/app/ui/pages/home_page/widgets/balance_dialog
 import 'package:recicla_tarapoto_1/app/ui/pages/home_page/widgets/notifications_dialog.dart';
 import 'dart:developer' as developer;
 
+// 🔹 IMPORTA el NotificationController (lo implementaremos enseguida)
+import 'package:recicla_tarapoto_1/app/controllers/notification_controller.dart';
+
 class HomeAppBar extends StatefulWidget implements PreferredSizeWidget {
   const HomeAppBar({Key? key}) : super(key: key);
 
@@ -20,10 +23,26 @@ class _HomeAppBarState extends State<HomeAppBar> {
   bool _isOpeningBalanceDialog = false;
   bool isCollector = true;
 
+  NotificationController? _notifCtrl;
+
   @override
   void initState() {
     super.initState();
+    _ensureNotifController();
     _loadUserData();
+  }
+
+  void _ensureNotifController() {
+    try {
+      if (Get.isRegistered<NotificationController>()) {
+        _notifCtrl = Get.find<NotificationController>();
+      } else {
+        // Ya no hagas Get.put aquí; el Binding lo creará al primer Get.find()
+        _notifCtrl = Get.find<NotificationController>();
+      }
+    } catch (e) {
+      _notifCtrl = null;
+    }
   }
 
   // Método para cargar datos de usuario y (si aplica) disparar el fetch de monedas
@@ -35,7 +54,6 @@ class _HomeAppBarState extends State<HomeAppBar> {
       // Si no es recolector, precarga el saldo (solo una vez al abrir)
       if (!isCollector) {
         final homeController = Get.find<HomeController>();
-        // await homeController.fetchTotalCoins();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           homeController.fetchTotalCoins();
         });
@@ -64,45 +82,68 @@ class _HomeAppBarState extends State<HomeAppBar> {
         ],
       ),
       actions: [
-        // Ícono de notificaciones
+        // Ícono de notificaciones + badge dinámico
         Transform.translate(
           offset: const Offset(-12, 0),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               IconButton(
                 icon: const Icon(Icons.notifications),
                 color: Colors.white,
                 iconSize: 33,
-                onPressed: () {
-                  showDialog(
+// dentro del onPressed del IconButton de notificaciones:
+                onPressed: () async {
+                  try {
+                    _notifCtrl
+                        ?.openModal(); // ocultar badge y activar modo modal
+                  } catch (_) {}
+
+                  await showDialog(
                     context: context,
                     builder: (_) => NotificationsDialog(),
                   );
+
+                  // Garantiza persistir y quitar resaltos aunque se cierre por fuera
+                  try {
+                    _notifCtrl?.closeModal();
+                  } catch (_) {}
                 },
               ),
+
+              // 🔹 Badge reactivo: muestra el conteo de NO LEÍDAS; si es 0, no aparece
               Positioned(
                 right: 0,
                 top: 1,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: const Color.fromARGB(255, 89, 217, 153),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 21,
-                    minHeight: 21,
-                  ),
-                  child: const Text(
-                    '!',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+                child: (_notifCtrl == null)
+                    ? const SizedBox.shrink()
+                    : Obx(() {
+                        final count = _notifCtrl!.newNotificationsCount.value;
+                        if (count <= 0) return const SizedBox.shrink();
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color.fromARGB(255, 89, 217, 153),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 21,
+                            minHeight: 21,
+                          ),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      }),
               ),
             ],
           ),
@@ -120,11 +161,10 @@ class _HomeAppBarState extends State<HomeAppBar> {
                 if (_isOpeningBalanceDialog) return; // evita taps repetidos
                 _isOpeningBalanceDialog = true;
                 try {
-                  // Abre y espera a que se cierre (sin addPostFrameCallback)
                   await showDialog(
                     context: context,
                     builder: (_) => const BalanceDialog(),
-                    barrierDismissible: true, // permite cerrar tocando fuera
+                    barrierDismissible: true,
                     useSafeArea: true,
                   );
                 } catch (e) {
@@ -144,8 +184,7 @@ class _HomeAppBarState extends State<HomeAppBar> {
                       size: 28,
                     ),
                     const SizedBox(width: 4),
-
-                    // 🔹 Reactivo: muestra spinner mientras carga, y luego las monedas en vivo
+                    // Reactivo: muestra spinner mientras carga, y luego las monedas
                     Obx(() {
                       if (home.isLoadingCoins.value) {
                         return const SizedBox(

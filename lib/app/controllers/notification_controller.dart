@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:recicla_tarapoto_1/app/controllers/user_controller.dart';
 
 class AppNotification {
@@ -9,6 +11,7 @@ class AppNotification {
   final DateTime date;
   final String description;
   final String? originalId;
+  final bool isNew;
 
   AppNotification({
     required this.type,
@@ -16,126 +19,251 @@ class AppNotification {
     required this.date,
     required this.description,
     this.originalId,
+    this.isNew = false,
   });
+
+  AppNotification copyWith({
+    String? type,
+    String? title,
+    DateTime? date,
+    String? description,
+    String? originalId,
+    bool? isNew,
+  }) {
+    return AppNotification(
+      type: type ?? this.type,
+      title: title ?? this.title,
+      date: date ?? this.date,
+      description: description ?? this.description,
+      originalId: originalId ?? this.originalId,
+      isNew: isNew ?? this.isNew,
+    );
+  }
 }
 
 class NotificationController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final UserController _userController = Get.find<UserController>();
+  final GetStorage _box = GetStorage('GlobalStorage');
 
+  // Estado
   RxBool isLoading = true.obs;
   RxList<AppNotification> notifications = <AppNotification>[].obs;
+
+  // Badge y modal
+  RxInt newNotificationsCount = 0.obs;
+  RxBool isModalOpen = false.obs;
+
+  // Paginación
+  RxInt notificationsToShow = 12.obs;
+
+  // Streams
+  StreamSubscription? _wcSub;
+  StreamSubscription? _riSub;
+  StreamSubscription? _anSub;
+
+  // ---- LastSeen por usuario ----
+  String get _lastSeenKey {
+    final uid = _userController.userModel.value?.uid ?? 'unknown';
+    return 'lastNotificationsSeenAt_$uid';
+  }
+
+  DateTime _getLastSeen() {
+    final ms = _box.read(_lastSeenKey);
+    if (ms is int) return DateTime.fromMillisecondsSinceEpoch(ms);
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  void _setLastSeen(DateTime dt) {
+    _box.write(_lastSeenKey, dt.millisecondsSinceEpoch);
+  }
 
   @override
   void onInit() {
     super.onInit();
     fetchNotifications();
+    _attachRealtimeListeners();
+    ever(_userController.userModel, (_) {
+      fetchNotifications();
+      _attachRealtimeListeners();
+    });
+  }
+
+  void _attachRealtimeListeners() {
+    _wcSub?.cancel();
+    _riSub?.cancel();
+    _anSub?.cancel();
+
+    final uid = _userController.userModel.value?.uid;
+    if (uid == null) return;
+
+    _wcSub = _firestore
+        .collection('wasteCollections')
+        .where('userReference', isEqualTo: _firestore.doc('users/$uid'))
+        .where('isRecycled', isEqualTo: true)
+        .snapshots()
+        .listen((_) => fetchNotifications());
+
+    _riSub = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('redeemedIncentives')
+        .where('status', isEqualTo: 'completado')
+        .snapshots()
+        .listen((_) => fetchNotifications());
+
+    _anSub = _firestore
+        .collection('announcements')
+        .snapshots()
+        .listen((_) => fetchNotifications());
+  }
+
+  @override
+  void onClose() {
+    _wcSub?.cancel();
+    _riSub?.cancel();
+    _anSub?.cancel();
+    super.onClose();
   }
 
   Future<void> fetchNotifications() async {
     try {
       isLoading.value = true;
-      notifications.clear();
+      notificationsToShow.value = 12;
 
       final String? uid = _userController.userModel.value?.uid;
       if (uid == null) {
-        print("NotificationController: User UID is null. Cannot fetch user-specific notifications.");
         isLoading.value = false;
+        newNotificationsCount.value = 0;
+        notifications.clear();
         return;
       }
-      print("NotificationController: Fetching notifications for UID: $uid");
 
-      List<AppNotification> fetchedNotifications = [];
+      // ⬇️ Opción B: una sola lectura de lastSeen y reutilización
+      final lastSeenRaw = _box.read(_lastSeenKey); // detectar primer arranque
+      DateTime lastSeen = _getLastSeen(); // usar en comparaciones
 
-      // 1. Fetch "Monedas" notifications
+      final List<AppNotification> fetched = [];
+
+      // 1) Monedas
       try {
-        final wasteCollectionsSnap = await _firestore
+        final snap = await _firestore
             .collection('wasteCollections')
             .where('userReference', isEqualTo: _firestore.doc('users/$uid'))
             .where('isRecycled', isEqualTo: true)
-            // .orderBy('date', descending: true) // Firestore might require an index for this
             .get();
-        print("NotificationController: Fetched ${wasteCollectionsSnap.docs.length} wasteCollections docs.");
-
-        for (var doc in wasteCollectionsSnap.docs) {
+        for (var doc in snap.docs) {
           final data = doc.data();
-          fetchedNotifications.add(AppNotification(
+          final dt = (data['date'] as Timestamp).toDate();
+          fetched.add(AppNotification(
             type: 'monedas',
             title: 'Monedas Recibidas',
-            date: (data['date'] as Timestamp).toDate(),
-            description: 'Recibiste un total de ${data['totalCoins']} monedas por tu entrega de residuos.',
+            date: dt,
+            description:
+                'Recibiste un total de ${data['totalCoins']} monedas por tu entrega de residuos.',
             originalId: doc.id,
           ));
         }
-      } catch (e) {
-        print("Error fetching 'Monedas' notifications: $e");
-      }
+      } catch (_) {}
 
-      // 2. Fetch "Incentivo" notifications
+      // 2) Incentivo
       try {
-        final redeemedIncentivesSnap = await _firestore
+        final snap = await _firestore
             .collection('users')
             .doc(uid)
             .collection('redeemedIncentives')
             .where('status', isEqualTo: 'completado')
-            // .orderBy('createdAt', descending: true) // Firestore might require an index
             .get();
-        print("NotificationController: Fetched ${redeemedIncentivesSnap.docs.length} redeemedIncentives docs.");
-
-        for (var doc in redeemedIncentivesSnap.docs) {
+        for (var doc in snap.docs) {
           final data = doc.data();
-          fetchedNotifications.add(AppNotification(
+          final dt = (data['createdAt'] as Timestamp).toDate();
+          fetched.add(AppNotification(
             type: 'incentivo',
             title: 'Incentivo Canjeado',
-            date: (data['createdAt'] as Timestamp).toDate(),
-            description: 'Canjeaste el incentivo "${data['name']}" por ${data['redeemedCoins']} monedas.',
+            date: dt,
+            description:
+                'Canjeaste el incentivo "${data['name']}" por ${data['redeemedCoins']} monedas.',
             originalId: doc.id,
           ));
         }
-      } catch (e) {
-        print("Error fetching 'Incentivo' notifications: $e");
-      }
+      } catch (_) {}
 
-      // 3. Fetch "Actualización" notifications
+      // 3) Actualización
       try {
-        final announcementsSnap = await _firestore
-            .collection('announcements')
-            // .orderBy('createdAt', descending: true) // Firestore might require an index
-            .get();
-        print("NotificationController: Fetched ${announcementsSnap.docs.length} announcements docs.");
-
-        for (var doc in announcementsSnap.docs) {
+        final snap = await _firestore.collection('announcements').get();
+        for (var doc in snap.docs) {
           final data = doc.data();
-          fetchedNotifications.add(AppNotification(
+          final dt = (data['createdAt'] as Timestamp).toDate();
+          fetched.add(AppNotification(
             type: 'actualizacion',
             title: data['title'] ?? 'Actualización Importante',
-            date: (data['createdAt'] as Timestamp).toDate(),
+            date: dt,
             description: data['content'] ?? 'No hay contenido.',
             originalId: doc.id,
           ));
         }
-      } catch (e) {
-        print("Error fetching 'Actualización' notifications: $e");
-      }
-      
-      // Sort all notifications by date after all fetches are complete
-      fetchedNotifications.sort((a, b) => b.date.compareTo(a.date));
-      notifications.assignAll(fetchedNotifications);
-      print("NotificationController: Total notifications processed: ${notifications.length}");
+      } catch (_) {}
 
+      // Orden desc y baseline de primer arranque
+      fetched.sort((a, b) => b.date.compareTo(a.date));
+      final bool isFirstLaunchForUser = (lastSeenRaw == null);
+      if (isFirstLaunchForUser && fetched.isNotEmpty) {
+        final now = DateTime.now();
+        _setLastSeen(now);
+        lastSeen = now; // ✅ actualizamos la variable local para esta ejecución
+      }
+
+      // Flags isNew contra el 'lastSeen' ya consolidado
+      final withFlags = fetched
+          .map((n) => n.copyWith(isNew: n.date.isAfter(lastSeen)))
+          .toList();
+
+      notifications.assignAll(withFlags);
+
+      // Si el modal está abierto, el badge queda en 0; si no, cuenta reales
+      final count = withFlags.where((n) => n.isNew).length;
+      newNotificationsCount.value = isModalOpen.value ? 0 : count;
     } catch (e) {
-      print("Error in fetchNotifications main try-catch: $e");
+      notifications.clear();
+      newNotificationsCount.value = 0;
     } finally {
       isLoading.value = false;
     }
   }
 
+  // Formato de fecha
   String formatDate(DateTime date) {
     try {
       return DateFormat('dd/MM/yyyy hh:mm a').format(date);
     } catch (e) {
-      print("Error formatting date: $e");
-      return date.toIso8601String(); // Fallback
+      return date.toIso8601String();
     }
+  }
+
+  // Paginación en memoria
+  void loadMore() {
+    final total = notifications.length;
+    final current = notificationsToShow.value;
+    if (current < total) {
+      final next = current + 12;
+      notificationsToShow.value = next > total ? total : next;
+    }
+  }
+
+  // --- Control del modal ---
+  void openModal() {
+    isModalOpen.value = true;
+    newNotificationsCount.value = 0; // oculta badge al toque
+  }
+
+  void closeModal() {
+    isModalOpen.value = false;
+    _setLastSeen(DateTime.now()); // marca todo visto "hasta ahora"
+    if (notifications.isNotEmpty) {
+      notifications.assignAll(
+        notifications.map((n) => n.copyWith(isNew: false)).toList(),
+      );
+    }
+    newNotificationsCount.value = 0;
   }
 }

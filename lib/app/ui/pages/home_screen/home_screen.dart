@@ -235,26 +235,10 @@ class HomeScreen extends GetView<HomeScreenController> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => Get.back(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF59D999),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
-                ),
-                child: const Text(
-                  "Confirmar",
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
               const Text(
-                "Recuerda que se te asignarán 5 monedas extras por segregar de manera correcta.",
-                textAlign: TextAlign.center,
+                "Cada tipo de residuo, ya sea cartón, papel, latas, botellas, deben estar en bolsas individuales. Si está correctamente segregado se te asignarán 5 monedas extras. ",
+                textAlign: TextAlign.justify,
                 style: TextStyle(fontSize: 14, color: Colors.white),
               ),
               const SizedBox(height: 10),
@@ -618,14 +602,38 @@ class HomeScreen extends GetView<HomeScreenController> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "Selecciona el tipo de residuo y la cantidad estimada (Kg). "
-                          "Si lo estás separando en bolsas individuales, ¡no olvides marcar el ícono!, así recibiras unas monedas extras",
+                          "Instrucciones:",
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Lista en formato enumerado
+                        const Text(
+                          "1. Selecciona el tipo de residuo.",
                           textAlign: TextAlign.justify,
                           style: TextStyle(fontSize: 15, height: 1.4),
                         ),
+                        const SizedBox(height: 6),
+
+                        const Text(
+                          "2. Ingresa la cantidad estimada en kilogramos.",
+                          textAlign: TextAlign.justify,
+                          style: TextStyle(fontSize: 15, height: 1.4),
+                        ),
+                        const SizedBox(height: 6),
+
+                        const Text(
+                          "3. Marca el ícono de la bolsa si lo estas segregando de forma correcta. Así recibirás unas monedas extras.",
+                          textAlign: TextAlign.justify,
+                          style: TextStyle(fontSize: 15, height: 1.4),
+                        ),
+
                         const SizedBox(height: 15),
+
                         // Construye cada "tipo de residuo"
                         ...residuos.asMap().entries.map((entry) {
                           int i = entry.key;
@@ -653,7 +661,6 @@ class HomeScreen extends GetView<HomeScreenController> {
                     ),
                   ),
                 ),
-
                 // Botón final: ahora reactivo y deshabilitado si totalKg <= 0
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16.0),
