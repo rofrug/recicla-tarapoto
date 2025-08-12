@@ -125,8 +125,8 @@ class _BalanceDialogState extends State<BalanceDialog> {
             const SizedBox(height: 6),
 
             const Text(
-              "Separa tus residuos en bolsas individuales y entérate de cuántas monedas recibes por cada tipo de material reciclado.",
-              textAlign: TextAlign.center,
+              "Mira cuánto vale cada kilo de residuo que entregues. Si los separas por tipo, te llevas unas monedas extra 😉",
+              textAlign: TextAlign.justify,
               style: TextStyle(fontSize: 14, color: Colors.black54),
             ),
             const SizedBox(height: 6),

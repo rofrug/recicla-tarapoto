@@ -22,6 +22,16 @@ class WasteCollectionsProvider {
   Future<void> updateWasteCollection(
       String docId, WasteCollectionModel updatedModel) async {
     try {
+      // 🔒 Validación dura: bloquear updates inválidos
+      if (updatedModel.totalKg <= 0) {
+        Get.snackbar(
+          'Datos inválidos',
+          'El total de Kg debe ser mayor a 0.',
+          snackPosition: SnackPosition.TOP,
+        );
+        throw ArgumentError('totalKg debe ser > 0 en updateWasteCollection');
+      }
+
       await _firestore
           .collection('wasteCollections')
           .doc(docId)
@@ -36,6 +46,16 @@ class WasteCollectionsProvider {
   Future<DocumentReference> addWasteCollection(
       WasteCollectionModel wasteCollection) async {
     try {
+      // 🔒 Validación dura: bloquear creaciones inválidas
+      if (wasteCollection.totalKg <= 0) {
+        Get.snackbar(
+          'Datos inválidos',
+          'El total de Kg debe ser mayor a 0.',
+          snackPosition: SnackPosition.TOP,
+        );
+        throw ArgumentError('totalKg debe ser > 0 en addWasteCollection');
+      }
+
       return await _firestore
           .collection('wasteCollections')
           .add(wasteCollection.toFirestore());
@@ -74,7 +94,7 @@ class WasteCollectionsProvider {
   /// Obtiene una recolección por ID
   Future<WasteCollectionModel?> getWasteCollectionById(String docId) async {
     try {
-      DocumentSnapshot doc =
+      final doc =
           await _firestore.collection('wasteCollections').doc(docId).get();
       if (doc.exists) {
         return WasteCollectionModel.fromFirestore(doc);

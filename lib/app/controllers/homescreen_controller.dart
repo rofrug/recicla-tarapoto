@@ -13,16 +13,20 @@ import '../data/provider/home_provider.dart';
 class HomeScreenController extends GetxController {
   // Variable reactiva para actualizar la interfaz cuando cambia el texto de los campos
   final updateUI = 0.obs;
-  
+
+  // (Opcional) Flag para indicar envío en progreso
+  final RxBool isSubmitting = false.obs;
+
   // Determina si el icono de bolsa debe estar habilitado para un controlador de texto dado
   bool isShoppingBagEnabled(TextEditingController controller) {
     return controller.text.isNotEmpty;
   }
-  
+
   // Forzar actualización de la UI cuando cambia un campo de texto
   void refreshUI() {
     updateUI.value++;
   }
+
   // Controlador de scroll
   late ScrollController scrollController;
 
@@ -69,11 +73,40 @@ class HomeScreenController extends GetxController {
     });
   }
 
-  /// Crea una nueva solicitud de recolección en la colección "waste_collections"
+  /// Crea una nueva solicitud de recolección en la colección "wasteCollections"
+  /// Bloquea el envío si totalKg <= 0 (validación dura en capa de presentación).
   Future<void> createWasteCollection(WasteCollectionModel wasteData) async {
-    await FirebaseFirestore.instance
-        .collection('wasteCollections')
-        .add(wasteData.toFirestore());
+    // 🔒 Validación dura: no permitir solicitudes sin peso
+    if (wasteData.totalKg <= 0) {
+      Get.snackbar(
+        "Datos inválidos",
+        "Debes ingresar al menos 0.1 Kg para enviar la solicitud.",
+        snackPosition: SnackPosition.TOP,
+      );
+      return;
+    }
+
+    // (Opcional) podrías validar que existan residuos seleccionados:
+    // if (wasteData.residues.isEmpty) { ... return; }
+
+    isSubmitting.value = true;
+    try {
+      await FirebaseFirestore.instance
+          .collection('wasteCollections')
+          .add(wasteData.toFirestore());
+
+      // Podrías limpiar estados aquí si manejas algo en memoria
+      // ...
+    } catch (e) {
+      Get.snackbar(
+        "Error",
+        "No se pudo guardar la solicitud. Intenta nuevamente.",
+        snackPosition: SnackPosition.TOP,
+      );
+      rethrow;
+    } finally {
+      isSubmitting.value = false;
+    }
   }
 
   @override
