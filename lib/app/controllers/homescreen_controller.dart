@@ -11,11 +11,22 @@ import '../data/models/carousel_image.dart';
 import '../data/provider/home_provider.dart';
 
 class HomeScreenController extends GetxController {
-  // Variable reactiva para actualizar la interfaz cuando cambia el texto de los campos
+  // Disparador para forzar rebuilds ligeros en la UI
   final updateUI = 0.obs;
 
-  // (Opcional) Flag para indicar envío en progreso
+  // Flag de envío
   final RxBool isSubmitting = false.obs;
+
+  // Tarifas por tipo (pts/kg) centralizadas
+  // Nota: si luego las traemos de backend, solo actualizamos aquí.
+  final Map<String, int> ratesByType = const {
+    'Papel y Cartón': 50,
+    'Plástico': 100,
+    'Metales': 50,
+  };
+
+  // Bono fijo por "bolsa individual" (por tipo)
+  final int bonusPerBag = 30;
 
   // Determina si el icono de bolsa debe estar habilitado para un controlador de texto dado
   bool isShoppingBagEnabled(TextEditingController controller) {
@@ -30,7 +41,7 @@ class HomeScreenController extends GetxController {
   // Controlador de scroll
   late ScrollController scrollController;
 
-  // Lista observable de URLs para el carrusel, proveniente de Firebase
+  // Lista observable para el carrusel
   RxList<CarouselImage> carouselImages = <CarouselImage>[].obs;
 
   // Provider
@@ -41,10 +52,10 @@ class HomeScreenController extends GetxController {
     super.onInit();
     scrollController = ScrollController();
 
-    // Iniciamos la escucha de la colección "carousel_image"
+    // Escucha de la colección "carousel_image"
     _initCarouselImagesListener();
 
-    // Una vez que el widget esté montado, iniciamos el desplazamiento automático
+    // Auto-scroll una vez montado
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoScroll());
   }
 
@@ -55,7 +66,7 @@ class HomeScreenController extends GetxController {
     });
   }
 
-  /// Desplazamiento automático (scroll infinito simulado) para el carrusel
+  /// Desplazamiento automático para el carrusel (scroll infinito simulado)
   void _autoScroll() {
     // Cada 100ms avanza 1 pixel
     Timer.periodic(const Duration(milliseconds: 100), (timer) {
@@ -73,30 +84,59 @@ class HomeScreenController extends GetxController {
     });
   }
 
-  /// Crea una nueva solicitud de recolección en la colección "wasteCollections"
-  /// Bloquea el envío si totalKg <= 0 (validación dura en capa de presentación).
+  /// Helpers opcionales para centralizar el cálculo (si luego quieres mover la lógica aquí)
+  int calcBaseCoinsForType({
+    required String type,
+    required int kg,
+  }) {
+    if (kg < 1) return 0;
+    final rate = ratesByType[type] ?? 0;
+    return kg * rate;
+  }
+
+  int calcBonusForType({
+    required bool individualBag,
+    required int kg,
+  }) {
+    // Solo otorgar bono si hay kg válidos
+    if (!individualBag || kg < 1) return 0;
+    return bonusPerBag;
+  }
+
+  int calcTotalForType({
+    required String type,
+    required int kg,
+    required bool individualBag,
+  }) {
+    return calcBaseCoinsForType(type: type, kg: kg) +
+        calcBonusForType(individualBag: individualBag, kg: kg);
+  }
+
+  int calcTotalWithBonus({
+    required int totalBaseCoins,
+    required int segregatedTypesCount,
+  }) {
+    return totalBaseCoins + (segregatedTypesCount * bonusPerBag);
+  }
+
+  /// Crea una nueva solicitud de recolección en "wasteCollections"
+  /// Bloquea el envío si totalKg <= 0 (mínimo 1 Kg).
   Future<void> createWasteCollection(WasteCollectionModel wasteData) async {
-    // 🔒 Validación dura: no permitir solicitudes sin peso
     if (wasteData.totalKg <= 0) {
       Get.snackbar(
         "Datos inválidos",
-        "Debes ingresar al menos 0.1 Kg para enviar la solicitud.",
+        "Debes ingresar al menos 1 Kg para enviar la solicitud.",
         snackPosition: SnackPosition.TOP,
       );
       return;
     }
-
-    // (Opcional) podrías validar que existan residuos seleccionados:
-    // if (wasteData.residues.isEmpty) { ... return; }
 
     isSubmitting.value = true;
     try {
       await FirebaseFirestore.instance
           .collection('wasteCollections')
           .add(wasteData.toFirestore());
-
-      // Podrías limpiar estados aquí si manejas algo en memoria
-      // ...
+      // Si necesitas limpiar estados locales, hazlo aquí.
     } catch (e) {
       Get.snackbar(
         "Error",

@@ -1,9 +1,18 @@
 // lib/app/data/models/residue_item.dart
 class ResidueItem {
+  /// Nombre del tipo (e.g., 'Plástico', 'Papel y Cartón', 'Metales')
   final String type;
+
+  /// Kilogramos aproximados (entero recibido como double)
   final double approxKg;
+
+  /// Monedas totales por este tipo (como String) = (kg * rateTipo) + (bolsa ? 30 : 0)
   final String coinsPerType;
+
+  /// ¿Marcó bolsa individual?
   final bool individualBag;
+
+  /// Subítems seleccionados (p.ej., 'Botellas', 'Cartón')
   final List<String> selectedItems;
 
   ResidueItem({
@@ -32,7 +41,7 @@ class ResidueItem {
     return {
       'type': type,
       'approxKg': approxKg,
-      'coinsPerType': coinsPerType,
+      'coinsPerType': coinsPerType, // total por tipo (base + bono)
       'individualBag': individualBag,
       'selectedItems': selectedItems,
     };

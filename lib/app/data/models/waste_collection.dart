@@ -8,8 +8,12 @@ class WasteCollectionModel {
   final String address;
   final bool isRecycled;
   final double totalBags;
+
+  /// totalCoins incluye el bono por bolsas (+30 por cada tipo marcado)
   final double totalCoins;
   final double totalKg;
+
+  /// Cantidad de tipos correctamente segregados (bolsa individual marcada)
   final int correctlySegregated;
   final List<ResidueItem> residues; // Aquí usamos la lista de ResidueItem
   final DocumentReference? userReference;
@@ -35,10 +39,15 @@ class WasteCollectionModel {
       address: data['address'] ?? '',
       isRecycled: data['isRecycled'] ?? false,
       totalBags: _toDouble(data['totalBags']),
-      totalCoins: _toDouble(data['totalCoins']),
+      totalCoins: _toDouble(data['totalCoins']), // ya incluye bono
       totalKg: _toDouble(data['totalKg']),
-      correctlySegregated: data['correctlySegregated'] ?? 0,
-      userReference: data['userReference'] ?? '',
+      correctlySegregated: (data['correctlySegregated'] ?? 0) is int
+          ? data['correctlySegregated'] as int
+          : int.tryParse('${data['correctlySegregated']}') ?? 0,
+      // ✅ casteo seguro a DocumentReference? (evita poner '')
+      userReference: data['userReference'] is DocumentReference
+          ? data['userReference'] as DocumentReference
+          : null,
       date: (data['date'] is Timestamp)
           ? (data['date'] as Timestamp).toDate()
           : null,
@@ -53,7 +62,7 @@ class WasteCollectionModel {
       'address': address,
       'isRecycled': isRecycled,
       'totalBags': totalBags,
-      'totalCoins': totalCoins,
+      'totalCoins': totalCoins, // base + bono
       'totalKg': totalKg,
       'correctlySegregated': correctlySegregated,
       'userReference': userReference,
@@ -72,7 +81,7 @@ class WasteCollectionModel {
       address: address,
       isRecycled: isRecycled ?? this.isRecycled,
       totalBags: totalBags,
-      totalCoins: totalCoins,
+      totalCoins: totalCoins, // mantenemos el total ya calculado
       totalKg: totalKg,
       correctlySegregated: correctlySegregated,
       residues: residues ?? this.residues,

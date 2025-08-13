@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 // Asegúrate de importar tu HomeScreenController
 import 'package:recicla_tarapoto_1/app/controllers/homescreen_controller.dart';
@@ -19,7 +20,7 @@ class HomeScreen extends GetView<HomeScreenController> {
     BuildContext context, {
     required List<Map<String, dynamic>> resumenResiduos,
     required double totalKg,
-    required double totalMonedas,
+    required double totalMonedasBase,
     required int totalBolsas,
     required int segregadosCorrectamente,
   }) {
@@ -27,7 +28,7 @@ class HomeScreen extends GetView<HomeScreenController> {
     if (totalKg <= 0) {
       Get.snackbar(
         "Datos inválidos",
-        "Debes ingresar al menos 0.1 Kg para enviar la solicitud.",
+        "Debes ingresar al menos 1 Kg para enviar la solicitud.",
         snackPosition: SnackPosition.TOP,
       );
       return;
@@ -36,10 +37,11 @@ class HomeScreen extends GetView<HomeScreenController> {
     showDialog(
       context: context,
       builder: (ctx) {
-        // Pre-calculate values with new names for clarity and to ensure correct types
-        final int bonusCoinsFromSegregados = segregadosCorrectamente * 5;
+        // Bono por bolsas: +30 por cada tipo marcado
+        final int bonusCoinsFromSegregados = segregadosCorrectamente * 30;
+        // El total final es base + bono
         final double finalTotalMonedasARecibir =
-            totalMonedas + bonusCoinsFromSegregados.toDouble();
+            totalMonedasBase + bonusCoinsFromSegregados.toDouble();
 
         return Dialog(
           shape: RoundedRectangleBorder(
@@ -111,11 +113,12 @@ class HomeScreen extends GetView<HomeScreenController> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text("Total de Residuos: $totalKg", softWrap: true),
-                        Text(" - Monedas: $totalMonedas", softWrap: true),
+                        Text(" - Monedas (base): $totalMonedasBase",
+                            softWrap: true),
                         Text(
                             "Segregados Correctamente: $segregadosCorrectamente",
                             softWrap: true),
-                        Text(" - Monedas: $bonusCoinsFromSegregados",
+                        Text(" - Bono por bolsas: $bonusCoinsFromSegregados",
                             softWrap: true),
                         Text(
                             "Total de Monedas a Recibir: $finalTotalMonedasARecibir",
@@ -155,30 +158,44 @@ class HomeScreen extends GetView<HomeScreenController> {
                         }
 
                         // (2) Mapeamos los residuos al modelo ResidueItem
+                        final Map<String, int> ratesByType = {
+                          'Papel y Cartón': 50,
+                          'Plástico': 100,
+                          'Metales': 50,
+                        };
+
                         final List<ResidueItem> residueItems =
                             resumenResiduos.map((res) {
-                          final double kg = res["kg"] as double;
-                          // asumiendo que 1 kg = 3 monedas:
-                          final double coins = kg * 3;
+                          final int kgInt = (res["kg"] as double).toInt();
+                          final String tipo = res["tipo"] as String;
+                          final bool bolsa = res["bolsa"] as bool;
+                          final int rate = ratesByType[tipo] ?? 0;
+
+                          final int coinsBase = kgInt * rate;
+                          final int coinsFinal =
+                              coinsBase + (bolsa ? 30 : 0); // bono fijo
 
                           return ResidueItem(
-                            approxKg: kg,
-                            coinsPerType: coins.toStringAsFixed(1),
-                            individualBag: res["bolsa"] as bool,
+                            approxKg: kgInt.toDouble(),
+                            coinsPerType: coinsFinal
+                                .toString(), // guardamos el final por tipo
+                            individualBag: bolsa,
                             selectedItems:
                                 (res["items"] as List).cast<String>(),
-                            type: res["tipo"] as String,
+                            type: tipo,
                           );
                         }).toList();
 
                         // (3) Construimos nuestro WasteCollectionModel
+                        final totalCoinsFinal =
+                            totalMonedasBase + (segregadosCorrectamente * 30);
+
                         final wasteCollection = WasteCollectionModel(
                           id: '', // se asignará automáticamente
                           address: userData.address,
                           isRecycled: false,
                           totalBags: totalBolsas.toDouble(),
-                          totalCoins:
-                              totalMonedas + (segregadosCorrectamente * 5),
+                          totalCoins: totalCoinsFinal,
                           totalKg: totalKg,
                           correctlySegregated: segregadosCorrectamente,
                           residues: residueItems,
@@ -211,7 +228,7 @@ class HomeScreen extends GetView<HomeScreenController> {
   }
 
   //------------------------------------------------------------------
-  // 2. Diálogo de marcar bolsa individual (igual que antes)
+  // 2. Diálogo de marcar bolsa individual (actualizado a +30)
   //------------------------------------------------------------------
   void _showBolsaDialog() {
     Get.dialog(
@@ -225,8 +242,8 @@ class HomeScreen extends GetView<HomeScreenController> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
+            children: const [
+              Text(
                 "¿El residuo está en bolsa individual?",
                 style: TextStyle(
                   fontSize: 18,
@@ -235,14 +252,14 @@ class HomeScreen extends GetView<HomeScreenController> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
-              const Text(
-                "Cada tipo de residuo, ya sea cartón, papel, latas, botellas, deben estar en bolsas individuales. Si está correctamente segregado se te asignarán 5 monedas extras. ",
+              SizedBox(height: 10),
+              Text(
+                "Cada tipo de residuo debe ir en su bolsa individual. Si está correctamente segregado se te asignarán 30 monedas extras.",
                 textAlign: TextAlign.justify,
                 style: TextStyle(fontSize: 14, color: Colors.white),
               ),
-              const SizedBox(height: 10),
-              const Text(
+              SizedBox(height: 10),
+              Text(
                 "Será verificado por el recolector asignado.",
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Colors.white70),
@@ -272,25 +289,41 @@ class HomeScreen extends GetView<HomeScreenController> {
 
   Widget _buildTotales(
     RxDouble totalKg,
-    RxDouble totalMonedas,
+    RxDouble totalMonedasBase,
     RxInt totalBolsas,
     RxInt segregadosCorrectamente,
   ) {
     return Obx(
-      () => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildRowTotal(
-              "Total de Residuos:", "${totalKg.value.toStringAsFixed(2)} Kg"),
-          _buildRowTotal(
-              " - Monedas:", "${totalMonedas.value.toStringAsFixed(0)}"),
-          _buildRowTotal(
-              "Segregados Correctamente", "${segregadosCorrectamente.value}"),
-          _buildRowTotal(" - Monedas:", "${segregadosCorrectamente.value * 5}"),
-          _buildRowTotal("Total de Monedas a recibir:",
-              "${totalMonedas.value + (segregadosCorrectamente.value * 5)}"),
-        ],
-      ),
+      () {
+        final int bonus = segregadosCorrectamente.value * 30; // +30 por tipo
+        final double totalFinal = totalMonedasBase.value + bonus;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildRowTotal(
+              "Total de Residuos:",
+              "${totalKg.value.toStringAsFixed(2)} Kg",
+            ),
+            _buildRowTotal(
+              " - Monedas (base):",
+              totalMonedasBase.value.toStringAsFixed(0),
+            ),
+            _buildRowTotal(
+              "Segregados Correctamente",
+              "${segregadosCorrectamente.value}",
+            ),
+            _buildRowTotal(
+              " - Bono por bolsas:",
+              "$bonus",
+            ),
+            _buildRowTotal(
+              "Total de Monedas a recibir:",
+              totalFinal.toStringAsFixed(0),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -299,7 +332,7 @@ class HomeScreen extends GetView<HomeScreenController> {
     int index,
     List<TextEditingController> kgControllers,
     RxList<bool> isKgFieldEnabled,
-    List<RxDouble> unitValues,
+    List<RxDouble> unitValuesBase,
     RxList<bool> selectedIcons,
     List<RxList<bool>> selectedButtons,
     List<RxBool> isKgFieldNotEmpty,
@@ -307,6 +340,8 @@ class HomeScreen extends GetView<HomeScreenController> {
     VoidCallback showBolsaDialog,
     double screenWidth,
   ) {
+    final String tipo = residuo["tipo"] as String;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -315,7 +350,7 @@ class HomeScreen extends GetView<HomeScreenController> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              residuo["tipo"],
+              tipo,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
@@ -338,27 +373,31 @@ class HomeScreen extends GetView<HomeScreenController> {
                 calculateTotals();
               }
 
-              return IconButton(
-                icon: Icon(
-                  Icons.shopping_bag,
-                  color: isEnabled
-                      ? (selectedIcons[index]
-                          ? const Color(
-                              0xFF59D999) // Verde cuando está seleccionado
-                          : Colors.grey)
-                      : Colors.grey
-                          .withOpacity(0.5), // Gris cuando deshabilitado
-                ),
-                // El botón solo se activa si hay texto y algún botón seleccionado
-                onPressed: isEnabled
-                    ? () {
-                        selectedIcons[index] = !selectedIcons[index];
-                        if (selectedIcons[index]) {
-                          _showBolsaDialog();
+              return Semantics(
+                button: true,
+                label: selectedIcons[index]
+                    ? "Desmarcar bolsa individual para $tipo"
+                    : "Marcar bolsa individual para $tipo",
+                child: IconButton(
+                  icon: Icon(
+                    Icons.shopping_bag,
+                    color: isEnabled
+                        ? (selectedIcons[index]
+                            ? const Color(
+                                0xFF59D999) // Verde cuando está seleccionado
+                            : Colors.grey)
+                        : Colors.grey.withOpacity(0.5), // Deshabilitado
+                  ),
+                  onPressed: isEnabled
+                      ? () {
+                          selectedIcons[index] = !selectedIcons[index];
+                          if (selectedIcons[index]) {
+                            _showBolsaDialog();
+                          }
+                          calculateTotals();
                         }
-                        calculateTotals();
-                      }
-                    : null,
+                      : null,
+                ),
               );
             }),
           ],
@@ -391,8 +430,8 @@ class HomeScreen extends GetView<HomeScreenController> {
                     // Reiniciar el ícono de segregación correcta
                     selectedIcons[index] = false;
 
-                    // Actualizar los valores unitarios
-                    unitValues[index].value = 0.0;
+                    // Actualizar los valores unitarios (base)
+                    unitValuesBase[index].value = 0.0;
 
                     // Forzar un rebuild para actualizar la UI
                     controller.refreshUI();
@@ -426,11 +465,14 @@ class HomeScreen extends GetView<HomeScreenController> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             SizedBox(
-              width: 100,
+              width: 110,
               child: Obx(
                 () => TextField(
                   controller: kgControllers[index],
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly, // solo enteros
+                  ],
                   enabled: isKgFieldEnabled[index],
                   onChanged: (value) {
                     // Notificar al controlador que debe actualizar la UI
@@ -438,7 +480,14 @@ class HomeScreen extends GetView<HomeScreenController> {
                     calculateTotals();
                   },
                   decoration: InputDecoration(
-                    labelText: "Kg Aprox.",
+                    labelText: "Kg (entero)",
+                    helperText: "Mín. 1",
+                    helperStyle: TextStyle(
+                      color: isKgFieldEnabled[index]
+                          ? Colors.black54
+                          : Colors.grey,
+                      fontSize: 11,
+                    ),
                     labelStyle: TextStyle(
                       color:
                           isKgFieldEnabled[index] ? Colors.black : Colors.grey,
@@ -461,10 +510,15 @@ class HomeScreen extends GetView<HomeScreenController> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                 ),
                 Obx(
-                  () => Text(
-                    "${unitValues[index].toStringAsFixed(2)}",
-                    style: const TextStyle(fontSize: 18),
-                  ),
+                  () {
+                    final int bonus = selectedIcons[index] ? 30 : 0;
+                    final double display =
+                        unitValuesBase[index].value + bonus.toDouble();
+                    return Text(
+                      "${display.toStringAsFixed(0)}",
+                      style: const TextStyle(fontSize: 18),
+                    );
+                  },
                 ),
               ],
             ),
@@ -492,25 +546,24 @@ class HomeScreen extends GetView<HomeScreenController> {
         "tipo": "Plástico",
         "items": ["Botellas", "Plást. Grueso"]
       },
-      //{
-      //  "tipo": "Vidrio",
-      //  "items": ["Botella", "Frasco"]
-      //},
       {
         "tipo": "Metales",
         "items": ["Latas", "Chatarra"]
       },
-      //{
-      //  "tipo": "Tetra Pack",
-      //  "items": ["Envases"]
-      //},
     ];
+
+    // Tarifas por tipo (pts/kg)
+    final Map<String, int> ratesByType = {
+      'Papel y Cartón': 50,
+      'Plástico': 100,
+      'Metales': 50,
+    };
 
     // Declaramos variables reactivas para controlar selección y totales
     final kgControllers = <TextEditingController>[];
-    final unitValues = <RxDouble>[];
+    final unitValuesBase = <RxDouble>[]; // solo base (kg * rate), sin bono
     final totalKg = 0.0.obs;
-    final totalMonedas = 0.0.obs;
+    final totalMonedasBase = 0.0.obs;
     final totalBolsas = 0.obs;
     final segregadosCorrectamente = 0.obs;
     final selectedIcons = List.filled(residuos.length, false).obs;
@@ -525,37 +578,52 @@ class HomeScreen extends GetView<HomeScreenController> {
     // Creamos un controller y un valor unitValue para cada tipo de residuo
     for (var _ in residuos) {
       kgControllers.add(TextEditingController());
-      unitValues.add(0.0.obs);
+      unitValuesBase.add(0.0.obs);
     }
 
     // Recalcula totales cuando algo cambia
     void _calculateTotals() {
       totalKg.value = 0.0;
-      totalMonedas.value = 0.0;
+      totalMonedasBase.value = 0.0;
       totalBolsas.value = 0;
       segregadosCorrectamente.value = 0;
 
       for (var i = 0; i < residuos.length; i++) {
         if (isKgFieldEnabled[i]) {
-          final kg = double.tryParse(kgControllers[i].text) ?? 0.0;
-          // 1 Kg => 3 monedas (ejemplo)
-          unitValues[i].value = kg * 3;
-          totalKg.value += kg;
-          totalMonedas.value += unitValues[i].value;
+          // Solo enteros, mínimo 1 para sumar
+          final int kgInt = int.tryParse(kgControllers[i].text) ?? 0;
+          final int kgValid = kgInt >= 1 ? kgInt : 0;
 
-          if (selectedIcons[i]) {
+          final String tipo = residuos[i]["tipo"] as String;
+          final int rate = ratesByType[tipo] ?? 0;
+
+          // Base por tipo (sin el bono de bolsa)
+          final int baseCoins = kgValid * rate;
+          unitValuesBase[i].value = baseCoins.toDouble();
+
+          totalKg.value += kgValid.toDouble();
+          totalMonedasBase.value += unitValuesBase[i].value;
+
+          if (selectedIcons[i] && kgValid > 0) {
+            // solo cuenta como segregado si hay kg válidos
             segregadosCorrectamente.value += 1;
           }
         }
       }
 
-      // Cada tipo de residuo activado cuenta como 1 bolsa
-      totalBolsas.value = isKgFieldEnabled.where((enabled) => enabled).length;
+      // Cada tipo de residuo activado con kg válidos cuenta como 1 bolsa
+      totalBolsas.value = 0;
+      for (var i = 0; i < residuos.length; i++) {
+        if (isKgFieldEnabled[i]) {
+          final int kgInt = int.tryParse(kgControllers[i].text) ?? 0;
+          if (kgInt >= 1) totalBolsas.value += 1;
+        }
+      }
     }
 
     // Listeners para recalcular si se modifican Kg en cualquier TextField
-    for (var controller in kgControllers) {
-      controller.addListener(_calculateTotals);
+    for (var controllerTF in kgControllers) {
+      controllerTF.addListener(_calculateTotals);
     }
 
     showDialog(
@@ -620,14 +688,14 @@ class HomeScreen extends GetView<HomeScreenController> {
                         const SizedBox(height: 6),
 
                         const Text(
-                          "2. Ingresa la cantidad estimada en kilogramos.",
+                          "2. Ingresa la cantidad estimada en kilogramos (solo números enteros).",
                           textAlign: TextAlign.justify,
                           style: TextStyle(fontSize: 15, height: 1.4),
                         ),
                         const SizedBox(height: 6),
 
                         const Text(
-                          "3. Marca el ícono de la bolsa si lo estas segregando de forma correcta. Así recibirás unas monedas extras.",
+                          "3. Marca el ícono de la bolsa si lo estás segregando de forma correcta. Así recibirás 30 monedas extras por ese tipo.",
                           textAlign: TextAlign.justify,
                           style: TextStyle(fontSize: 15, height: 1.4),
                         ),
@@ -643,7 +711,7 @@ class HomeScreen extends GetView<HomeScreenController> {
                             i,
                             kgControllers,
                             isKgFieldEnabled,
-                            unitValues,
+                            unitValuesBase,
                             selectedIcons,
                             selectedButtons,
                             isKgFieldNotEmpty,
@@ -654,8 +722,12 @@ class HomeScreen extends GetView<HomeScreenController> {
                         }).toList(),
 
                         const Divider(thickness: 1.2),
-                        _buildTotales(totalKg, totalMonedas, totalBolsas,
-                            segregadosCorrectamente),
+                        _buildTotales(
+                          totalKg,
+                          totalMonedasBase,
+                          totalBolsas,
+                          segregadosCorrectamente,
+                        ),
                         const SizedBox(height: 10),
                       ],
                     ),
@@ -666,63 +738,72 @@ class HomeScreen extends GetView<HomeScreenController> {
                   padding: const EdgeInsets.only(bottom: 16.0),
                   child: Obx(() {
                     final canSubmit = totalKg.value > 0;
-                    return ElevatedButton(
-                      onPressed: canSubmit
-                          ? () {
-                              // 1) Cerramos este diálogo
-                              Navigator.of(ctx).pop();
+                    return Semantics(
+                      button: true,
+                      label: canSubmit
+                          ? "Enviar solicitud de recolección"
+                          : "Botón deshabilitado. Agrega al menos 1 Kg válido.",
+                      child: ElevatedButton(
+                        onPressed: canSubmit
+                            ? () {
+                                // 1) Cerramos este diálogo
+                                Navigator.of(ctx).pop();
 
-                              // 2) Generamos un listado de lo que se seleccionó para mostrarlo
-                              final List<Map<String, dynamic>> resumen = [];
-                              for (var i = 0; i < residuos.length; i++) {
-                                if (isKgFieldEnabled[i]) {
-                                  final tipo = residuos[i]["tipo"];
-                                  final kg =
-                                      double.tryParse(kgControllers[i].text) ??
-                                          0.0;
-                                  final bolsa = selectedIcons[i];
-                                  // Recolectamos también los items marcados
-                                  final selectedItems = <String>[];
-                                  for (var j = 0;
-                                      j < selectedButtons[i].length;
-                                      j++) {
-                                    if (selectedButtons[i][j]) {
-                                      selectedItems.add((residuos[i]["items"]
-                                          as List<String>)[j]);
+                                // 2) Generamos un listado de lo que se seleccionó para mostrarlo
+                                final List<Map<String, dynamic>> resumen = [];
+                                for (var i = 0; i < residuos.length; i++) {
+                                  if (isKgFieldEnabled[i]) {
+                                    final tipo = residuos[i]["tipo"];
+                                    final int kgInt =
+                                        int.tryParse(kgControllers[i].text) ??
+                                            0;
+                                    if (kgInt < 1)
+                                      continue; // aseguramos mínimo 1
+                                    final kg = kgInt.toDouble();
+                                    final bolsa = selectedIcons[i];
+                                    // Recolectamos también los items marcados
+                                    final selectedItems = <String>[];
+                                    for (var j = 0;
+                                        j < selectedButtons[i].length;
+                                        j++) {
+                                      if (selectedButtons[i][j]) {
+                                        selectedItems.add((residuos[i]["items"]
+                                            as List<String>)[j]);
+                                      }
                                     }
+                                    resumen.add({
+                                      "tipo": tipo,
+                                      "kg": kg,
+                                      "bolsa": bolsa,
+                                      "items": selectedItems,
+                                    });
                                   }
-                                  resumen.add({
-                                    "tipo": tipo,
-                                    "kg": kg,
-                                    "bolsa": bolsa,
-                                    "items": selectedItems,
-                                  });
                                 }
-                              }
 
-                              // 3) Mostramos el diálogo de confirmación/resumen
-                              _showConfirmationDialog(
-                                context,
-                                resumenResiduos: resumen,
-                                totalKg: totalKg.value,
-                                totalMonedas: totalMonedas.value,
-                                totalBolsas: totalBolsas.value,
-                                segregadosCorrectamente:
-                                    segregadosCorrectamente.value,
-                              );
-                            }
-                          : null, // deshabilita el botón
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF59D999),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                                // 3) Mostramos el diálogo de confirmación/resumen
+                                _showConfirmationDialog(
+                                  context,
+                                  resumenResiduos: resumen,
+                                  totalKg: totalKg.value,
+                                  totalMonedasBase: totalMonedasBase.value,
+                                  totalBolsas: totalBolsas.value,
+                                  segregadosCorrectamente:
+                                      segregadosCorrectamente.value,
+                                );
+                              }
+                            : null, // deshabilita el botón
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF59D999),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 25, vertical: 14),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 25, vertical: 14),
-                      ),
-                      child: const Text(
-                        "Enviar Solicitud",
-                        style: TextStyle(fontSize: 16),
+                        child: const Text(
+                          "Enviar Solicitud",
+                          style: TextStyle(fontSize: 16),
+                        ),
                       ),
                     );
                   }),
