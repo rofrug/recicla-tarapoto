@@ -93,7 +93,7 @@ class HomeScreen extends GetView<HomeScreenController> {
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: Color(0xFF31ADA0),
+                              color: Color.fromARGB(255, 31, 211, 157),
                             ),
                           ),
                           const SizedBox(height: 4),

@@ -213,7 +213,7 @@ class _HomeAppBarState extends State<HomeAppBar> {
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF59D999), Color(0xFF31ADA0)],
+            colors: [Color(0xFF31ADA0), Color(0xFF31ADA0)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

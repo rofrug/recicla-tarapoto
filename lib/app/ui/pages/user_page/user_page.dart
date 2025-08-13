@@ -8,14 +8,14 @@ class UserScreen extends GetView<UserController> {
 
   // Instanciar el controlador de estadísticas a nivel de clase
   final UserStatsController statsController = UserStatsController();
-  
+
   @override
   Widget build(BuildContext context) {
     // Registrar el controlador si no está registrado ya
     if (!Get.isRegistered<UserStatsController>()) {
       Get.put(statsController);
     }
-    
+
     // Inicializar y forzar la carga de estadísticas cuando se construye la pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Cargar datos reales desde Firebase
@@ -130,19 +130,19 @@ class UserScreen extends GetView<UserController> {
                             const SizedBox(width: 8),
                             // Botón para actualizar estadísticas
                             IconButton(
-                              icon: const Icon(Icons.refresh, size: 20, color: Color(0xFF31ADA0)),
+                              icon: const Icon(Icons.refresh,
+                                  size: 20, color: Color(0xFF31ADA0)),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                               tooltip: 'Actualizar estadísticas',
                               onPressed: () {
                                 // Actualizar estadísticas
                                 statsController.refreshStats();
-                                Get.snackbar(
-                                  'Actualizando', 
-                                  'Cargando datos más recientes...',
-                                  backgroundColor: Colors.green.withOpacity(0.2),
-                                  duration: const Duration(seconds: 2)
-                                );
+                                Get.snackbar('Actualizando',
+                                    'Cargando datos más recientes...',
+                                    backgroundColor:
+                                        Colors.green.withOpacity(0.2),
+                                    duration: const Duration(seconds: 2));
                               },
                             ),
                           ],
@@ -174,7 +174,8 @@ class UserScreen extends GetView<UserController> {
                             builder: (controller) {
                               return Row(
                                 children: [
-                                  const Icon(Icons.recycling, color: Color(0xFF31ADA0)),
+                                  const Icon(Icons.recycling,
+                                      color: Color(0xFF31ADA0)),
                                   const SizedBox(width: 8),
                                   const Text(
                                     'Residuos Reciclados:',
@@ -185,22 +186,22 @@ class UserScreen extends GetView<UserController> {
                                   ),
                                   const SizedBox(width: 8),
                                   controller.isLoading.value
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Color(0xFF31ADA0),
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Color(0xFF31ADA0),
+                                          ),
+                                        )
+                                      : Text(
+                                          '${controller.totalKgReciclados.value.toStringAsFixed(1)} Kg',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF31ADA0),
+                                          ),
                                         ),
-                                      )
-                                    : Text(
-                                        '${controller.totalKgReciclados.value.toStringAsFixed(1)} Kg',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF31ADA0),
-                                        ),
-                                      ),
                                 ],
                               );
                             },
@@ -226,22 +227,23 @@ class UserScreen extends GetView<UserController> {
                                         ),
                                         const SizedBox(width: 4),
                                         controller.isLoading.value
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Color(0xFF31ADA0),
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Color(0xFF31ADA0),
+                                                ),
+                                              )
+                                            : Text(
+                                                '${statsController.totalIncentivosCanjeados.value}',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF31ADA0),
+                                                ),
                                               ),
-                                            )
-                                          : Text(
-                                              '${statsController.totalIncentivosCanjeados.value}',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF31ADA0),
-                                              ),
-                                            ),
                                       ],
                                     );
                                   },
@@ -257,7 +259,7 @@ class UserScreen extends GetView<UserController> {
                                             size: 20, color: Color(0xFF31ADA0)),
                                         const SizedBox(width: 8),
                                         const Text(
-                                          'Recolecciones:',
+                                          'Recoleccion:',
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
@@ -265,22 +267,23 @@ class UserScreen extends GetView<UserController> {
                                         ),
                                         const SizedBox(width: 4),
                                         controller.isLoading.value
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Color(0xFF31ADA0),
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Color(0xFF31ADA0),
+                                                ),
+                                              )
+                                            : Text(
+                                                '${statsController.totalRecolecciones.value}',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF31ADA0),
+                                                ),
                                               ),
-                                            )
-                                          : Text(
-                                              '${statsController.totalRecolecciones.value}',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF31ADA0),
-                                              ),
-                                            ),
                                       ],
                                     );
                                   },
