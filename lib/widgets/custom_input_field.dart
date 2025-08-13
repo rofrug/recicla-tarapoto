@@ -31,6 +31,9 @@ class _CustomInputFieldState extends State<CustomInputField> {
   /// `showIcon` controlará si el ícono se ve o no.
   bool showIcon = true;
 
+  /// Listener que se adjunta al controlador de texto.
+  VoidCallback? _controllerListener;
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +54,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
     });
 
     // Listener para cambios de texto
-    widget.controller?.addListener(() {
+    _controllerListener = () {
       // Si el campo NO está enfocado, verifica si debe mostrar el ícono
       if (!_focusNode.hasFocus) {
         setState(() {
@@ -59,11 +62,16 @@ class _CustomInputFieldState extends State<CustomInputField> {
         });
       }
       // Si está enfocado, se mantiene oculto
-    });
+    };
+
+    widget.controller?.addListener(_controllerListener!);
   }
 
   @override
   void dispose() {
+    if (_controllerListener != null) {
+      widget.controller?.removeListener(_controllerListener!);
+    }
     _focusNode.dispose();
     super.dispose();
   }

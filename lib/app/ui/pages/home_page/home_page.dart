@@ -33,10 +33,10 @@ class HomePage extends GetView<HomeController> {
       ];
 
       final List<Widget> pagesCollector = [
-        HomecollectorPage(),
-        NotificationsPage(),
-        UserScreen(),
-        AllRedeemedIncentivesPage(),
+        HomecollectorPage(), // Inventario
+        NotificationsPage(), // Notificación
+        AllRedeemedIncentivesPage(), // Regalo (canjes/incentivos)
+        UserScreen(), // Perfil
       ];
 
       // Items del BottomNavigationBar
@@ -61,20 +61,16 @@ class HomePage extends GetView<HomeController> {
 
       final List<BottomNavigationBarItem> itemsCollector = const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.home_repair_service),
-          label: '',
+          icon: Icon(Icons.home_repair_service), label: '', // Inventario
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.notifications_active),
-          label: '',
+          icon: Icon(Icons.notifications_active), label: '', // Notificación
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.person_pin),
-          label: '',
+          icon: Icon(Icons.card_giftcard), label: '', // Regalo
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.card_giftcard),
-          label: '',
+          icon: Icon(Icons.person), label: '', // Perfil
         ),
       ];
 
