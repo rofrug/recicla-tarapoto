@@ -141,11 +141,9 @@ class _BalanceDialogState extends State<BalanceDialog> {
 
   Widget _buildEquivalenceList() {
     final data = [
-      ["Papel / Cartón", "6", Icons.description],
-      ["Plástico", "7", Icons.local_drink],
-      ["Metales", "10", Icons.bolt],
-      ["Tetra Pack", "5", Icons.inbox],
-      ["Vidrio", "3", Icons.wine_bar],
+      ["Papel / Cartón", "50", Icons.description],
+      ["Plástico", "100", Icons.local_drink],
+      ["Metales", "50", Icons.bolt],
     ];
 
     return Column(

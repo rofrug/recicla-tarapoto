@@ -139,9 +139,7 @@ class NotificationController extends GetxController {
         return;
       }
 
-      // ⬇️ Opción B: una sola lectura de lastSeen y reutilización
-      final lastSeenRaw = _box.read(_lastSeenKey); // detectar primer arranque
-      DateTime lastSeen = _getLastSeen(); // usar en comparaciones
+      final lastSeenRaw = _box.read(_lastSeenKey);
 
       final List<AppNotification> fetched = [];
 
@@ -208,19 +206,18 @@ class NotificationController extends GetxController {
       fetched.sort((a, b) => b.date.compareTo(a.date));
       final bool isFirstLaunchForUser = (lastSeenRaw == null);
       if (isFirstLaunchForUser && fetched.isNotEmpty) {
-        final now = DateTime.now();
-        _setLastSeen(now);
-        lastSeen = now; // ✅ actualizamos la variable local para esta ejecución
+        _setLastSeen(DateTime.now());
       }
 
-      // Flags isNew contra el 'lastSeen' ya consolidado
+      // Flags isNew contra lastSeen actual
+      final effectiveLastSeen = _getLastSeen();
       final withFlags = fetched
-          .map((n) => n.copyWith(isNew: n.date.isAfter(lastSeen)))
+          .map((n) => n.copyWith(isNew: n.date.isAfter(effectiveLastSeen)))
           .toList();
 
       notifications.assignAll(withFlags);
 
-      // Si el modal está abierto, el badge queda en 0; si no, cuenta reales
+      // Si el modal está abierto, el badge debe quedar en 0; si no, cuenta reales
       final count = withFlags.where((n) => n.isNew).length;
       newNotificationsCount.value = isModalOpen.value ? 0 : count;
     } catch (e) {
@@ -253,12 +250,15 @@ class NotificationController extends GetxController {
   // --- Control del modal ---
   void openModal() {
     isModalOpen.value = true;
-    newNotificationsCount.value = 0; // oculta badge al toque
+    // Oculta el badge inmediatamente
+    newNotificationsCount.value = 0;
   }
 
   void closeModal() {
     isModalOpen.value = false;
-    _setLastSeen(DateTime.now()); // marca todo visto "hasta ahora"
+    // Marca todo como visto "hasta ahora"
+    _setLastSeen(DateTime.now());
+    // Borra el resalto en memoria para que al cerrar el modal todo quede como antiguo
     if (notifications.isNotEmpty) {
       notifications.assignAll(
         notifications.map((n) => n.copyWith(isNew: false)).toList(),

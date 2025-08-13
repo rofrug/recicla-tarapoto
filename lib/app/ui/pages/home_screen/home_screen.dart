@@ -498,7 +498,7 @@ class HomeScreen extends GetView<HomeScreenController> {
       //},
       {
         "tipo": "Metales",
-        "items": ["Latas", "Cobre", "Chatarra"]
+        "items": ["Latas", "Chatarra"]
       },
       //{
       //  "tipo": "Tetra Pack",
