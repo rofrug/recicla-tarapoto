@@ -11,7 +11,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await GetStorage.init('GlobalStorage');
-
   runApp(
     GetMaterialApp(
       debugShowCheckedModeBanner: false,
