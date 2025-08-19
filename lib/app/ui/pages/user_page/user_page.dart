@@ -117,16 +117,6 @@ class UserScreen extends GetView<UserController> {
                         ),
                         Row(
                           children: [
-                            const Icon(Icons.money, color: Color(0xFF31ADA0)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${controller.totalCoinsEarnedFromRecycling.value}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF31ADA0),
-                              ),
-                            ),
                             const SizedBox(width: 8),
                             // Botón para actualizar estadísticas
                             IconButton(
