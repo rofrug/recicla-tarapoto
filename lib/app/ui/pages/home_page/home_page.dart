@@ -11,6 +11,9 @@ import '../incentives_page/incentives_page.dart';
 import '../information_page/information_page.dart';
 import '../notifications_page/notifications_page.dart';
 import '../user_page/user_page.dart';
+// NUEVO: perfil del recolector
+import '../profilecollector_page/profilecollector_page.dart';
+
 // Importaciones de widgets separados
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_bottom_navigation_bar.dart';
@@ -29,49 +32,32 @@ class HomePage extends GetView<HomeController> {
         HomeScreen(),
         InformationScreen(),
         IncentivesScreen(),
-        UserScreen(),
+        UserScreen(), // Perfil (ciudadano)
       ];
 
       final List<Widget> pagesCollector = [
-        HomecollectorPage(), // Inventario
-        NotificationsPage(), // Notificación
-        AllRedeemedIncentivesPage(), // Regalo (canjes/incentivos)
-        UserScreen(), // Perfil
+        HomecollectorPage(), // Inventario / principal recolector
+        NotificationsPage(), // Notificaciones
+        AllRedeemedIncentivesPage(), // Canjes/incentivos
+        ProfilecollectorPage(), // 👈 Perfil (recolector) — CAMBIADO
       ];
 
       // Items del BottomNavigationBar
       final List<BottomNavigationBarItem> itemsUser = const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: '',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.info),
-          label: '',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.card_giftcard),
-          label: '',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: '',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
+        BottomNavigationBarItem(icon: Icon(Icons.info), label: ''),
+        BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: ''),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
       ];
 
       final List<BottomNavigationBarItem> itemsCollector = const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.home_repair_service), label: '', // Inventario
-        ),
+            icon: Icon(Icons.home_repair_service), label: ''), // Inventario
         BottomNavigationBarItem(
-          icon: Icon(Icons.notifications_active), label: '', // Notificación
-        ),
+            icon: Icon(Icons.notifications_active), label: ''), // Notificación
         BottomNavigationBarItem(
-          icon: Icon(Icons.card_giftcard), label: '', // Regalo
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person), label: '', // Perfil
-        ),
+            icon: Icon(Icons.card_giftcard), label: ''), // Regalo
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: ''), // Perfil
       ];
 
       // Seleccionamos las páginas e items dependiendo de isCollector

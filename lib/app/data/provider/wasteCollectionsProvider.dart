@@ -18,6 +18,22 @@ class WasteCollectionsProvider {
             .toList());
   }
 
+  // 🔥 NUEVO: Completadas (historial), ordenadas por fecha desc
+  Stream<List<WasteCollectionModel>> getCompletedWasteCollections(
+      {int limit = 100}) {
+    // Si te pide índice compuesto, créalo (Firestore a veces lo solicita
+    // para where + orderBy). Puedes quitar orderBy si no usas 'date'.
+    return _firestore
+        .collection('wasteCollections')
+        .where('isRecycled', isEqualTo: true)
+        .orderBy('date', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((qs) => qs.docs
+            .map((doc) => WasteCollectionModel.fromFirestore(doc))
+            .toList());
+  }
+
   /// Actualiza un documento de la colección a partir de su ID
   Future<void> updateWasteCollection(
       String docId, WasteCollectionModel updatedModel) async {
