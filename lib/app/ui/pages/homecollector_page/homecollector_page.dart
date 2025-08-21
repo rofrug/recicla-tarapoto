@@ -9,15 +9,21 @@ import '../../../data/models/waste_collection.dart';
 import '../../../data/models/residue_item.dart';
 
 class HomecollectorPage extends GetView<HomecollectorController> {
+  // Cantidad a mostrar en el historial (6 en 6)
+  final RxInt _historyShowCount = 6.obs;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ==========================
+              // RECOLECCIONES PENDIENTES
+              // ==========================
               Text(
                 'Recolecciones Pendientes',
                 style: TextStyle(
@@ -25,34 +31,122 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 8),
-              Expanded(
-                child: StreamBuilder<List<WasteCollectionModel>>(
-                  stream: controller.wasteCollectionsStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text('Error: ${snapshot.error}'),
-                      );
-                    }
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Center(
-                        child: Text('No hay recolecciones pendientes.'),
-                      );
-                    }
-                    final wasteCollections = snapshot.data!;
-                    return ListView.builder(
-                      itemCount: wasteCollections.length,
-                      itemBuilder: (context, index) {
-                        final waste = wasteCollections[index];
-                        return _buildListItem(waste, context);
-                      },
+              const SizedBox(height: 8),
+
+              // Lista de pendientes integrada al scroll padre
+              StreamBuilder<List<WasteCollectionModel>>(
+                stream: controller.wasteCollectionsStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                        child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    ));
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text('Error: ${snapshot.error}'),
                     );
-                  },
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('No hay recolecciones pendientes.'),
+                    );
+                  }
+
+                  final pending = snapshot.data!;
+                  return ListView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: pending.length,
+                    itemBuilder: (context, index) {
+                      final waste = pending[index];
+                      return _buildListItem(waste, context);
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              // ==========================
+              // HISTORIAL DE RECOLECCIONES
+              // ==========================
+              Text(
+                'Historial de recolecciones',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
+              ),
+              const SizedBox(height: 8),
+
+              StreamBuilder<List<WasteCollectionModel>>(
+                // Asegúrate de exponer este stream en tu HomecollectorController
+                stream: controller.completedCollectionsStream,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                        child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    ));
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text('Error: ${snapshot.error}'),
+                    );
+                  }
+                  final data = snapshot.data ?? [];
+                  if (data.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Sin recolecciones registradas.'),
+                    );
+                  }
+
+                  // Orden opcional por fecha descendente si el stream no lo hace ya
+                  data.sort((a, b) {
+                    final ad = a.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+                    final bd = b.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+                    return bd.compareTo(ad);
+                  });
+
+                  return Obx(() {
+                    final total = data.length;
+                    final count = _historyShowCount.value < total
+                        ? _historyShowCount.value
+                        : total;
+
+                    return Column(
+                      children: [
+                        ListView.separated(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemCount: count,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (_, index) {
+                            final it = data[index];
+                            return _buildHistoryItem(it, context);
+                          },
+                        ),
+                        if (count < total)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: TextButton(
+                              onPressed: () {
+                                _historyShowCount.value += 6;
+                              },
+                              child: const Text('Ver más'),
+                            ),
+                          ),
+                      ],
+                    );
+                  });
+                },
               ),
             ],
           ),
@@ -61,20 +155,23 @@ class HomecollectorPage extends GetView<HomecollectorController> {
     );
   }
 
+  // ==========================
+  // ITEM DE PENDIENTES (tapping abre diálogo)
+  // ==========================
   Widget _buildListItem(WasteCollectionModel waste, BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: GestureDetector(
         onTap: () => _showFloatingDialog(context, waste),
         child: Container(
-          padding: EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(12.0),
           decoration: BoxDecoration(
             color: const Color.fromARGB(255, 89, 217, 206),
             borderRadius: BorderRadius.circular(8.0),
           ),
           child: Text(
             waste.address.isEmpty ? 'Sin dirección' : waste.address,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
             ),
@@ -84,7 +181,64 @@ class HomecollectorPage extends GetView<HomecollectorController> {
     );
   }
 
-  // Método auxiliar para mostrar filas de detalle en el diálogo
+  // ==========================
+  // ITEM DE HISTORIAL (vista compacta)
+  // ==========================
+  Widget _buildHistoryItem(WasteCollectionModel waste, BuildContext context) {
+    final dateStr = waste.date != null
+        ? DateFormat('dd/MM/yyyy HH:mm').format(waste.date!)
+        : 'Fecha no disponible';
+
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F6F5),
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: const Color(0xFF59D999), width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Color(0xFF31ADA0)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  waste.address.isEmpty ? 'Sin dirección' : waste.address,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${(waste.totalKg).toStringAsFixed(1)} Kg',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF31ADA0),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================
+  // DIALOG DE DETALLES (igual a tu versión)
+  // ==========================
   Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -98,7 +252,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
               color: Colors.grey[700],
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
@@ -114,7 +268,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
     );
   }
 
-  /// Abre el diálogo y llena automáticamente los campos
+  /// Abre el diálogo y llena automáticamente los campos (con tu lógica existente)
   void _showFloatingDialog(BuildContext context, WasteCollectionModel waste) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
@@ -144,20 +298,14 @@ class HomecollectorPage extends GetView<HomecollectorController> {
 
     // Preparar controladores para cada residuo
     for (var residue in waste.residues) {
-      // KG como enteros (guardamos texto, mostramos como int si es posible)
       final initialKg = residue.approxKg.toInt();
       kgControllers.add(TextEditingController(text: initialKg.toString()));
-
-      // Monedas por tipo serán calculadas; mostramos el valor existente como fallback
       final coinsText =
           (residue.coinsPerType.isEmpty ? "0" : residue.coinsPerType);
       coinsControllers.add(TextEditingController(text: coinsText));
-
-      // Estado de bolsa individual
       segregationControllers.add(residue.individualBag);
     }
 
-    // Función para recalcular totales con la nueva fórmula
     void _calculateTotals() {
       double newTotalKg = 0.0;
       int baseCoinsSum = 0;
@@ -165,49 +313,36 @@ class HomecollectorPage extends GetView<HomecollectorController> {
 
       for (int i = 0; i < waste.residues.length; i++) {
         final residue = waste.residues[i];
-        // KG entero y mínimo 1 para sumar
         final int kgInt = int.tryParse(kgControllers[i].text) ?? 0;
         final int kgValid = kgInt >= 1 ? kgInt : 0;
 
-        // Tarifa por tipo
         final String type = residue.type;
         final int rate = ratesByType[type] ?? 0;
-
-        // Cálculo base por tipo
         final int baseCoins = kgValid * rate;
 
-        // Bono por bolsa individual
         final int bonus =
             (segregationControllers[i] && kgValid > 0) ? bonusPerBag : 0;
 
-        // Total por tipo (base + bono)
         final int perTypeTotal = baseCoins + bonus;
 
-        // Actualizar controles visibles
         coinsControllers[i].text = perTypeTotal.toString();
 
-        // Acumular totales
         newTotalKg += kgValid.toDouble();
         baseCoinsSum += baseCoins;
         if (segregationControllers[i] && kgValid > 0) segregatedCount++;
       }
 
-      // Total final (base + 30 * segregados)
       final int finalTotalCoins =
           baseCoinsSum + (segregatedCount * bonusPerBag);
 
-      // Actualizar valores reactivos
       totalKg.value = newTotalKg;
       totalCoins.value = finalTotalCoins.toDouble();
       correctlySegregated.value = segregatedCount;
     }
 
-    // Agregar listeners a los controladores para recalcular totales
     for (var controller in kgControllers) {
       controller.addListener(_calculateTotals);
     }
-
-    // Calcular totales iniciales
     _calculateTotals();
 
     showDialog(
@@ -275,7 +410,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                     color: Color(0xFF31ADA0),
                                   ),
                                 ),
-                                SizedBox(height: 10),
+                                const SizedBox(height: 10),
                                 _buildDetailRow("Dirección:", waste.address),
                                 _buildDetailRow("Fecha:", dateFormatted),
                                 _buildDetailRow(
@@ -290,9 +425,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                           ),
                         ),
 
-                        SizedBox(height: 20),
+                        const SizedBox(height: 20),
 
-                        // Detalles de residuos
+                        // Detalle de residuos
                         Text(
                           "Detalle de Residuos",
                           style: TextStyle(
@@ -301,16 +436,16 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                             color: Color(0xFF31ADA0),
                           ),
                         ),
-                        SizedBox(height: 10),
+                        const SizedBox(height: 10),
 
                         if (waste.residues.isEmpty)
-                          Center(
+                          const Center(
                             child: Text("No hay residuos registrados."),
                           )
                         else
                           ...List.generate(waste.residues.length, (index) {
                             final residue = waste.residues[index];
-                            // Obtener ítems seleccionados
+
                             String itemsText;
                             if (residue.selectedItems.isEmpty) {
                               itemsText = "Ninguno";
@@ -319,10 +454,10 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                             }
 
                             return Card(
-                              margin: EdgeInsets.only(bottom: 12),
+                              margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                side: BorderSide(
+                                side: const BorderSide(
                                   color: Color(0xFF59D999),
                                   width: 1,
                                 ),
@@ -336,16 +471,16 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                       residue.type.isEmpty
                                           ? "Tipo no especificado"
                                           : residue.type,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF31ADA0),
                                       ),
                                     ),
-                                    SizedBox(height: 8),
+                                    const SizedBox(height: 8),
                                     _buildDetailRow("Ítems:", itemsText),
 
-                                    // Campo editable para Kg (enteros)
+                                    // KG (enteros)
                                     Row(
                                       children: [
                                         Text(
@@ -355,7 +490,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             color: Colors.grey[700],
                                           ),
                                         ),
-                                        SizedBox(width: 10),
+                                        const SizedBox(width: 10),
                                         Expanded(
                                           child: TextField(
                                             controller: kgControllers[index],
@@ -364,7 +499,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                               FilteringTextInputFormatter
                                                   .digitsOnly,
                                             ],
-                                            decoration: InputDecoration(
+                                            decoration: const InputDecoration(
                                               contentPadding:
                                                   EdgeInsets.symmetric(
                                                       horizontal: 10,
@@ -379,9 +514,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                         ),
                                       ],
                                     ),
-                                    SizedBox(height: 8),
+                                    const SizedBox(height: 8),
 
-                                    // Monedas por tipo (calculadas, no editable)
+                                    // Monedas por tipo (calculadas)
                                     Row(
                                       children: [
                                         Text(
@@ -391,17 +526,18 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             color: Colors.grey[700],
                                           ),
                                         ),
-                                        SizedBox(width: 10),
+                                        const SizedBox(width: 10),
                                         Expanded(
                                           child: TextField(
                                             controller: coinsControllers[index],
                                             readOnly: true,
                                             decoration: InputDecoration(
                                               contentPadding:
-                                                  EdgeInsets.symmetric(
+                                                  const EdgeInsets.symmetric(
                                                       horizontal: 10,
                                                       vertical: 5),
-                                              border: OutlineInputBorder(),
+                                              border:
+                                                  const OutlineInputBorder(),
                                               isDense: true,
                                               fillColor: Colors.grey[100],
                                               filled: true,
@@ -410,9 +546,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                         ),
                                       ],
                                     ),
-                                    SizedBox(height: 8),
+                                    const SizedBox(height: 8),
 
-                                    // Toggle para segregación correcta
+                                    // Toggle segregación correcta
                                     Row(
                                       children: [
                                         Text(
@@ -422,7 +558,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             color: Colors.grey[700],
                                           ),
                                         ),
-                                        SizedBox(width: 10),
+                                        const SizedBox(width: 10),
                                         StatefulBuilder(
                                           builder: (context, setState) {
                                             return Switch(
@@ -435,7 +571,8 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                                 });
                                                 _calculateTotals();
                                               },
-                                              activeColor: Color(0xFF59D999),
+                                              activeColor:
+                                                  const Color(0xFF59D999),
                                             );
                                           },
                                         ),
@@ -447,11 +584,11 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                             );
                           }),
 
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
                         // Totales
                         Card(
-                          color: Color(0xFFF4F6F5),
+                          color: const Color(0xFFF4F6F5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -460,7 +597,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                const Text(
                                   "Totales",
                                   style: TextStyle(
                                     fontSize: 16,
@@ -468,9 +605,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                     color: Color(0xFF31ADA0),
                                   ),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
 
-                                // Total Kg (reactivo)
+                                // Total Kg
                                 Row(
                                   children: [
                                     Text(
@@ -479,7 +616,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                           fontWeight: FontWeight.bold,
                                           color: Colors.grey[700]),
                                     ),
-                                    SizedBox(width: 10),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Obx(() => TextField(
                                             controller: TextEditingController(
@@ -488,10 +625,11 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             readOnly: true,
                                             decoration: InputDecoration(
                                               contentPadding:
-                                                  EdgeInsets.symmetric(
+                                                  const EdgeInsets.symmetric(
                                                       horizontal: 10,
                                                       vertical: 5),
-                                              border: OutlineInputBorder(),
+                                              border:
+                                                  const OutlineInputBorder(),
                                               isDense: true,
                                               fillColor: Colors.grey[100],
                                               filled: true,
@@ -500,9 +638,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                     ),
                                   ],
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
 
-                                // Total Monedas (reactivo)
+                                // Total Monedas
                                 Row(
                                   children: [
                                     Text(
@@ -511,7 +649,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                           fontWeight: FontWeight.bold,
                                           color: Colors.grey[700]),
                                     ),
-                                    SizedBox(width: 10),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Obx(() => TextField(
                                             controller: TextEditingController(
@@ -520,10 +658,11 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             readOnly: true,
                                             decoration: InputDecoration(
                                               contentPadding:
-                                                  EdgeInsets.symmetric(
+                                                  const EdgeInsets.symmetric(
                                                       horizontal: 10,
                                                       vertical: 5),
-                                              border: OutlineInputBorder(),
+                                              border:
+                                                  const OutlineInputBorder(),
                                               isDense: true,
                                               fillColor: Colors.grey[100],
                                               filled: true,
@@ -532,9 +671,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                     ),
                                   ],
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
 
-                                // Correctamente segregados (reactivo)
+                                // Correctamente segregados
                                 Row(
                                   children: [
                                     Text(
@@ -543,7 +682,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                           fontWeight: FontWeight.bold,
                                           color: Colors.grey[700]),
                                     ),
-                                    SizedBox(width: 10),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Obx(() => TextField(
                                             controller: TextEditingController(
@@ -552,10 +691,11 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             readOnly: true,
                                             decoration: InputDecoration(
                                               contentPadding:
-                                                  EdgeInsets.symmetric(
+                                                  const EdgeInsets.symmetric(
                                                       horizontal: 10,
                                                       vertical: 5),
-                                              border: OutlineInputBorder(),
+                                              border:
+                                                  const OutlineInputBorder(),
                                               isDense: true,
                                               fillColor: Colors.grey[100],
                                               filled: true,
@@ -583,7 +723,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () async {
-                              // Preparar actualizaciones (persistimos con la fórmula nueva)
+                              // Persistir con fórmula nueva
                               List<ResidueItem> updatedResidues = [];
                               int finalBaseSum = 0;
                               int segregatedCount = 0;
@@ -594,11 +734,15 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                     int.tryParse(kgControllers[i].text) ?? 0;
                                 final int kgValid = kgInt >= 1 ? kgInt : 0;
 
-                                final int rate = ratesByType[residue.type] ?? 0;
+                                final int rate = {
+                                      'Papel y Cartón': 50,
+                                      'Plástico': 100,
+                                      'Metales': 50
+                                    }[residue.type] ??
+                                    0;
                                 final int baseCoins = kgValid * rate;
                                 final bool bag = segregationControllers[i];
-                                final int bonus =
-                                    (bag && kgValid > 0) ? bonusPerBag : 0;
+                                final int bonus = (bag && kgValid > 0) ? 30 : 0;
                                 final int perTypeTotal = baseCoins + bonus;
 
                                 if (bag && kgValid > 0) segregatedCount++;
@@ -613,18 +757,22 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                 ));
                               }
 
-                              final int finalTotalCoins = finalBaseSum +
-                                  (segregatedCount * bonusPerBag);
+                              final int finalTotalCoins =
+                                  finalBaseSum + (segregatedCount * 30);
 
-                              // Crear modelo actualizado con valores recalculados
                               final updatedWaste = WasteCollectionModel(
                                 id: waste.id,
                                 address: waste.address,
                                 isRecycled: true,
                                 totalBags: waste.totalBags,
                                 totalCoins: finalTotalCoins.toDouble(),
-                                totalKg: totalKg
-                                    .value, // ya recalc en _calculateTotals
+                                totalKg: waste.residues.fold<double>(
+                                    0.0,
+                                    (p, r) =>
+                                        p +
+                                        (double.tryParse(
+                                                r.approxKg.toString()) ??
+                                            0.0)),
                                 correctlySegregated: segregatedCount,
                                 residues: updatedResidues,
                                 userReference: waste.userReference,
@@ -645,9 +793,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            child: Text(
+                            child: const Text(
                               "Guardar y Marcar como Reciclado",
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
@@ -665,9 +813,9 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            child: Text("Cerrar"),
+                            child: const Text("Cerrar"),
                           ),
                         ),
                     ],
@@ -687,7 +835,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
           Text(value),
         ],
       ),

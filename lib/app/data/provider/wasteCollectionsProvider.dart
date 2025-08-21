@@ -1,3 +1,4 @@
+// lib/app/data/provider/wasteCollectionsProvider.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -7,7 +8,7 @@ import '../models/waste_collection.dart';
 class WasteCollectionsProvider {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Retorna un Stream de [WasteCollectionModel] donde isRecycled = false
+  /// Recolecciones PENDIENTES (isRecycled = false)
   Stream<List<WasteCollectionModel>> getPendingWasteCollections() {
     return _firestore
         .collection('wasteCollections')
@@ -18,16 +19,14 @@ class WasteCollectionsProvider {
             .toList());
   }
 
-  // 🔥 NUEVO: Completadas (historial), ordenadas por fecha desc
+  /// Recolecciones COMPLETADAS (historial) SIN orderBy para evitar índice compuesto.
+  /// El orden por fecha desc se aplica en HomecollectorController.
   Stream<List<WasteCollectionModel>> getCompletedWasteCollections(
       {int limit = 100}) {
-    // Si te pide índice compuesto, créalo (Firestore a veces lo solicita
-    // para where + orderBy). Puedes quitar orderBy si no usas 'date'.
     return _firestore
         .collection('wasteCollections')
         .where('isRecycled', isEqualTo: true)
-        .orderBy('date', descending: true)
-        .limit(limit)
+        .limit(limit) // opcional
         .snapshots()
         .map((qs) => qs.docs
             .map((doc) => WasteCollectionModel.fromFirestore(doc))
@@ -38,7 +37,7 @@ class WasteCollectionsProvider {
   Future<void> updateWasteCollection(
       String docId, WasteCollectionModel updatedModel) async {
     try {
-      // 🔒 Validación dura: bloquear updates inválidos
+      // Validación básica
       if (updatedModel.totalKg <= 0) {
         Get.snackbar(
           'Datos inválidos',
@@ -62,7 +61,6 @@ class WasteCollectionsProvider {
   Future<DocumentReference> addWasteCollection(
       WasteCollectionModel wasteCollection) async {
     try {
-      // 🔒 Validación dura: bloquear creaciones inválidas
       if (wasteCollection.totalKg <= 0) {
         Get.snackbar(
           'Datos inválidos',

@@ -1,9 +1,9 @@
+// lib/app/ui/pages/profilecollector_page/profilecollector_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:recicla_tarapoto_1/app/controllers/profilecollector_controller.dart';
 import 'package:recicla_tarapoto_1/app/controllers/collector_stats_controller.dart';
 import 'package:recicla_tarapoto_1/app/controllers/user_controller.dart';
-import 'package:recicla_tarapoto_1/app/controllers/collector_history_controller.dart';
 import 'package:get_storage/get_storage.dart';
 
 class ProfilecollectorPage extends GetView<ProfilecollectorController> {
@@ -11,15 +11,12 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
 
   // Controlador de estadísticas del recolector
   final CollectorStatsController stats = Get.put(CollectorStatsController());
-  final CollectorHistoryController history =
-      Get.put(CollectorHistoryController());
 
   // Helpers
   String _safeName() {
     try {
       final uc = Get.find<UserController>();
       final m = uc.userModel.value;
-      // Ajusta estos campos a tu modelo real (name / displayName / email)
       final name = (m?.name ?? 'Recolector').toString();
       return name.isNotEmpty ? name : 'Recolector';
     } catch (_) {
@@ -39,7 +36,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
       final uc = Get.find<UserController>();
       uc.logout();
     } catch (e) {
-      // Fallback por si no está registrado el UserController
       Get.snackbar('Sesión', 'No se pudo cerrar sesión. Reintenta.',
           snackPosition: SnackPosition.BOTTOM);
     }
@@ -258,7 +254,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
 
     return Scaffold(
       body: Obx(() {
-        // Mostramos carga general si aún está trayendo datos
         final loading = stats.isLoading.value;
 
         return SingleChildScrollView(
@@ -277,7 +272,7 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
               ),
               const SizedBox(height: 10),
               _myInfoCard(),
-              const SizedBox(height: 15),
+              const SizedBox(height: 10),
               const Text(
                 'Resumen',
                 style: TextStyle(
@@ -285,7 +280,7 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               if (loading)
                 const Center(
                     child: Padding(
@@ -295,15 +290,12 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
               else
                 Column(
                   children: [
-                    // Card grande: Residuos Totales (Kg)
                     _buildStatCard(
                       'Total de residuos recolectados',
                       '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
                       double.infinity,
                     ),
-                    const SizedBox(height: 10),
-
-                    // Dos cards: Incentivos y Recolección
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Expanded(
@@ -325,105 +317,11 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                     ),
                   ],
                 ),
-              const SizedBox(height: 15),
-              const Text(
-                'Historial de recolecciones',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 15),
-              Obx(() {
-                if (history.isLoading.value) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                if (history.items.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('Sin recolecciones registradas.'),
-                  );
-                }
-
-                return ListView.separated(
-                  physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
-                  itemCount: history.items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) {
-                    final it = history.items[i];
-                    final fecha = history.formatDate(it.date);
-                    final titulo = '${it.userName} • $fecha';
-                    final subtitulo = it.address.isNotEmpty ? it.address : '—';
-                    final trailing = '${it.kg.toStringAsFixed(1)} Kg';
-                    return _historyItem(
-                      title: titulo,
-                      subtitle: subtitulo,
-                      trailing: trailing,
-                    );
-                  },
-                );
-              }),
+              // ✅ Historial REMOVIDO (vive ahora en HomecollectorPage)
             ],
           ),
         );
       }),
-    );
-  }
-
-  Widget _historyItem({
-    required String title,
-    required String subtitle,
-    required String trailing,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFF59D999), Color(0xFF31ADA0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: const Icon(Icons.recycling, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: Colors.black54)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            trailing,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ],
-      ),
     );
   }
 }
