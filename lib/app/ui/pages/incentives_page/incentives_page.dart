@@ -417,7 +417,7 @@ class IncentiveCard extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: SizedBox(
-                            height: 44,
+                            height: 36,
                             child: ElevatedButton(
                               onPressed: agotado ? null : onRedeem,
                               style: ElevatedButton.styleFrom(
@@ -430,7 +430,7 @@ class IncentiveCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
+                                    const EdgeInsets.symmetric(horizontal: 6),
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: const FittedBox(
