@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../controllers/homecollector_controller.dart';
 import '../../../data/models/waste_collection.dart';
@@ -11,6 +12,9 @@ import '../../../data/models/residue_item.dart';
 class HomecollectorPage extends GetView<HomecollectorController> {
   // Cantidad a mostrar en el historial (6 en 6)
   final RxInt _historyShowCount = 6.obs;
+
+  // Índice expandido del historial (-1 = ninguno)
+  final RxInt _expandedIndex = (-1).obs;
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +88,6 @@ class HomecollectorPage extends GetView<HomecollectorController> {
               const SizedBox(height: 8),
 
               StreamBuilder<List<WasteCollectionModel>>(
-                // Asegúrate de exponer este stream en tu HomecollectorController
                 stream: controller.completedCollectionsStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -130,7 +133,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                               const SizedBox(height: 8),
                           itemBuilder: (_, index) {
                             final it = data[index];
-                            return _buildHistoryItem(it, context);
+                            return _buildHistoryItem(it, context, index);
                           },
                         ),
                         if (count < total)
@@ -182,84 +185,181 @@ class HomecollectorPage extends GetView<HomecollectorController> {
   }
 
   // ==========================
-  // ITEM DE HISTORIAL (vista compacta)
+  // ITEM DE HISTORIAL (expandible)
   // ==========================
-  Widget _buildHistoryItem(WasteCollectionModel waste, BuildContext context) {
-    final dateStr = waste.date != null
-        ? DateFormat('dd/MM/yyyy HH:mm').format(waste.date!)
-        : 'Fecha no disponible';
+  Widget _buildHistoryItem(
+      WasteCollectionModel waste, BuildContext context, int index) {
+    final requested = waste.requestedAt ?? waste.date;
+    final processed = waste.recycledAt;
 
-    return Container(
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F6F5),
-        borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: const Color(0xFF59D999), width: 1),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle, color: Color(0xFF31ADA0)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  waste.address.isEmpty ? 'Sin dirección' : waste.address,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
+    String fmt(DateTime? d) =>
+        d == null ? '—' : DateFormat('dd/MM/yyyy HH:mm').format(d);
+
+    return Obx(() {
+      final isExpanded = _expandedIndex.value == index;
+
+      return GestureDetector(
+        onTap: () {
+          _expandedIndex.value =
+              isExpanded ? -1 : index; // toggle expand/collapse
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4F6F5),
+            borderRadius: BorderRadius.circular(8.0),
+            border: Border.all(color: const Color(0xFF59D999), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Encabezado (compacto)
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Color(0xFF31ADA0)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          waste.address.isEmpty
+                              ? 'Sin dirección'
+                              : waste.address,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        // ↑ Primero SOLICITADO
+                        Text('Solicitado: ${fmt(requested)}',
+                            style: TextStyle(
+                                color: Colors.grey[700], fontSize: 12)),
+                        // ↓ Luego PROCESADO
+                        Text('Procesado: ${fmt(processed)}',
+                            style: TextStyle(
+                                color: Colors.grey[700], fontSize: 12)),
+                      ],
+                    ),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  dateStr,
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 13,
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${(waste.totalKg).toStringAsFixed(1)} Kg',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF31ADA0),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: Colors.grey[700],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // Sección expandida (resumen)
+              if (isExpanded) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7FAF9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE1EFEA)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Totales
+                      _buildTotalRow(
+                          'Total Kg', '${waste.totalKg.toStringAsFixed(1)}'),
+                      _buildTotalRow(
+                          'Monedas', '${waste.totalCoins.toStringAsFixed(0)}'),
+                      _buildTotalRow(
+                          'Seg. Correctamente', '${waste.correctlySegregated}'),
+                      _buildTotalRow(
+                          'Bolsas', '${waste.totalBags.toStringAsFixed(0)}'),
+
+                      const SizedBox(height: 8),
+                      const Divider(height: 16),
+                      const Text(
+                        'Por tipo',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF31ADA0),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Resumen por tipo
+                      ...waste.residues.map((r) {
+                        final kg = r.approxKg.toStringAsFixed(0);
+                        final coins =
+                            (r.coinsPerType.isEmpty ? '0' : r.coinsPerType)
+                                .toString();
+                        final bag = r.individualBag ? ' · Bolsa ✓' : '';
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Text(
+                            '• ${r.type} · $kg kg · $coins monedas$bag',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        );
+                      }).toList(),
+                    ],
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            '${(waste.totalKg).toStringAsFixed(1)} Kg',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF31ADA0),
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+    });
   }
 
   // ==========================
-  // DIALOG DE DETALLES (igual a tu versión)
+  // DIALOG DE DETALLES (igual a tu versión adaptada)
   // ==========================
-  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+  Widget _buildDetailBlock(String title, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            title,
             style: TextStyle(
-              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
               color: Colors.grey[700],
+              letterSpacing: .2,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FAF9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE1EFEA)),
+            ),
             child: Text(
               value,
-              style: TextStyle(
-                color: valueColor ?? Colors.black87,
-                fontWeight:
-                    valueColor != null ? FontWeight.w500 : FontWeight.normal,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
           ),
@@ -273,6 +373,21 @@ class HomecollectorPage extends GetView<HomecollectorController> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    // Fechas para mostrar
+    DateTime? requested = waste.requestedAt ?? waste.date;
+    DateTime? processed = waste.recycledAt;
+
+    String fmt(DateTime? d) =>
+        d == null ? '—' : DateFormat('dd/MM/yyyy HH:mm').format(d);
+
+    // Helpers UI
+    String _initials(String s) {
+      final t = s.trim();
+      if (t.isEmpty) return 'U';
+      final parts = t.split(RegExp(r'\s+'));
+      return parts.first.characters.first.toUpperCase();
+    }
+
     // Tarifas por tipo (igual que en el Generador)
     final Map<String, int> ratesByType = {
       'Papel y Cartón': 50,
@@ -281,22 +396,17 @@ class HomecollectorPage extends GetView<HomecollectorController> {
     };
     const int bonusPerBag = 30;
 
-    // Fecha formateada
-    final dateFormatted = waste.date != null
-        ? DateFormat('dd/MM/yyyy HH:mm').format(waste.date!)
-        : 'Fecha no disponible';
-
-    // Controladores para edición
+    // Controladores por residuo
     final kgControllers = <TextEditingController>[];
     final coinsControllers = <TextEditingController>[];
     final segregationControllers = <bool>[];
 
-    // Variables reactivas para los totales
+    // Totales reactivos
     final totalKg = waste.totalKg.obs;
     final totalCoins = waste.totalCoins.obs;
     final correctlySegregated = waste.correctlySegregated.obs;
 
-    // Preparar controladores para cada residuo
+    // Preparar controladores
     for (var residue in waste.residues) {
       final initialKg = residue.approxKg.toInt();
       kgControllers.add(TextEditingController(text: initialKg.toString()));
@@ -322,7 +432,6 @@ class HomecollectorPage extends GetView<HomecollectorController> {
 
         final int bonus =
             (segregationControllers[i] && kgValid > 0) ? bonusPerBag : 0;
-
         final int perTypeTotal = baseCoins + bonus;
 
         coinsControllers[i].text = perTypeTotal.toString();
@@ -349,118 +458,199 @@ class HomecollectorPage extends GetView<HomecollectorController> {
       context: context,
       builder: (ctx) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: Container(
-            width: screenWidth * 0.9,
-            height: screenHeight * 0.8,
+            width: screenWidth * 0.92,
+            height: screenHeight * 0.86,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Column(
               children: [
-                // Encabezado
+                // ===== Header estilizado =====
                 Container(
                   width: double.infinity,
                   padding:
-                      const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                      const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF31ADA0),
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF31ADA0), Color(0xFF59D999)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(15),
-                      topRight: Radius.circular(15),
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
                     ),
                   ),
-                  child: const Text(
-                    "Detalles de Recolección",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.description, color: Colors.white),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          "Detalles de Recolección",
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Chip(
+                        label: Text(
+                          waste.isRecycled ? 'Procesado' : 'Pendiente',
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                        backgroundColor:
+                            waste.isRecycled ? Colors.green : Colors.orange,
+                      ),
+                    ],
                   ),
                 ),
 
-                // Contenido principal
+                // ===== Contenido =====
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Información general
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        // ==== Tarjeta de usuario (arriba de la descripción) ====
+                        if (waste.userReference != null)
+                          FutureBuilder<DocumentSnapshot>(
+                            future: waste.userReference!.get(),
+                            builder: (context, snap) {
+                              String display = 'Usuario';
+                              if (snap.hasData && snap.data!.data() != null) {
+                                final data =
+                                    snap.data!.data() as Map<String, dynamic>;
+                                final name = (data['name'] ?? '').toString();
+                                final last =
+                                    (data['lastname'] ?? '').toString();
+                                final joined = [name, last]
+                                    .where((s) => s.trim().isNotEmpty)
+                                    .join(' ')
+                                    .trim();
+                                if (joined.isNotEmpty) display = joined;
+                              }
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF7FBFA),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: const Color(0xFFDCF4EF)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: Color(0xFF31ADA0),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        _initials(display),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(display,
+                                              style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700)),
+                                          Text(
+                                            waste.address.isEmpty
+                                                ? 'Sin dirección'
+                                                : waste.address,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                color: Colors.black54),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
+
+                        // ==== Información general / Fechas ====
+                        Card(
+                          elevation: 1.5,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                const Text(
                                   "Información General",
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF31ADA0),
-                                  ),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF31ADA0)),
                                 ),
                                 const SizedBox(height: 10),
-                                _buildDetailRow("Dirección:", waste.address),
-                                _buildDetailRow("Fecha:", dateFormatted),
-                                _buildDetailRow(
-                                  "Estado:",
-                                  waste.isRecycled ? "Reciclado" : "Pendiente",
-                                  valueColor: waste.isRecycled
-                                      ? Colors.green
-                                      : Colors.orange,
-                                ),
+
+                                // Orden: solicitado arriba / procesado abajo
+                                _buildDetailBlock(
+                                    "Fecha de solicitud", fmt(requested)),
+                                _buildDetailBlock(
+                                    "Fecha de procesamiento", fmt(processed)),
                               ],
                             ),
                           ),
                         ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
 
-                        // Detalle de residuos
-                        Text(
+                        // ==== Detalle de residuos ====
+                        const Text(
                           "Detalle de Residuos",
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF31ADA0),
-                          ),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF31ADA0)),
                         ),
                         const SizedBox(height: 10),
 
                         if (waste.residues.isEmpty)
                           const Center(
-                            child: Text("No hay residuos registrados."),
-                          )
+                              child: Text("No hay residuos registrados."))
                         else
                           ...List.generate(waste.residues.length, (index) {
                             final residue = waste.residues[index];
 
-                            String itemsText;
-                            if (residue.selectedItems.isEmpty) {
-                              itemsText = "Ninguno";
-                            } else {
-                              itemsText = residue.selectedItems.join(", ");
-                            }
+                            final String itemsText =
+                                residue.selectedItems.isEmpty
+                                    ? "Ninguno"
+                                    : residue.selectedItems.join(", ");
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(10),
                                 side: const BorderSide(
-                                  color: Color(0xFF59D999),
-                                  width: 1,
-                                ),
+                                    color: Color(0xFF59D999), width: 1),
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(12.0),
@@ -472,13 +662,13 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                           ? "Tipo no especificado"
                                           : residue.type,
                                       style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
                                         color: Color(0xFF31ADA0),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    _buildDetailRow("Ítems:", itemsText),
+                                    _buildDetailBlock("Ítems:", itemsText),
 
                                     // KG (enteros)
                                     Row(
@@ -486,9 +676,8 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                         Text(
                                           "Cantidad (Kg):",
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.grey[700],
-                                          ),
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey[700]),
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
@@ -497,7 +686,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                             keyboardType: TextInputType.number,
                                             inputFormatters: [
                                               FilteringTextInputFormatter
-                                                  .digitsOnly,
+                                                  .digitsOnly
                                             ],
                                             decoration: const InputDecoration(
                                               contentPadding:
@@ -522,9 +711,8 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                         Text(
                                           "Monedas (tipo):",
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.grey[700],
-                                          ),
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey[700]),
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
@@ -554,9 +742,8 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                         Text(
                                           "Segregación correcta:",
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.grey[700],
-                                          ),
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey[700]),
                                         ),
                                         const SizedBox(width: 10),
                                         StatefulBuilder(
@@ -584,14 +771,13 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                             );
                           }),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
 
-                        // Totales
+                        // ==== Totales ====
                         Card(
                           color: const Color(0xFFF4F6F5),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                              borderRadius: BorderRadius.circular(10)),
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Column(
@@ -600,22 +786,19 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                 const Text(
                                   "Totales",
                                   style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF31ADA0),
-                                  ),
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF31ADA0)),
                                 ),
                                 const SizedBox(height: 8),
 
                                 // Total Kg
                                 Row(
                                   children: [
-                                    Text(
-                                      "Total Kg:",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[700]),
-                                    ),
+                                    Text("Total Kg:",
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[700])),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Obx(() => TextField(
@@ -643,12 +826,10 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                 // Total Monedas
                                 Row(
                                   children: [
-                                    Text(
-                                      "Total Monedas:",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[700]),
-                                    ),
+                                    Text("Total Monedas:",
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[700])),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Obx(() => TextField(
@@ -676,12 +857,10 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                 // Correctamente segregados
                                 Row(
                                   children: [
-                                    Text(
-                                      "Segregados correctamente:",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[700]),
-                                    ),
+                                    Text("Seg. Correctamente:",
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey[700])),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Obx(() => TextField(
@@ -713,7 +892,7 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                   ),
                 ),
 
-                // Botones de acción
+                // ===== Botones de acción =====
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
@@ -766,24 +945,21 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                                 isRecycled: true,
                                 totalBags: waste.totalBags,
                                 totalCoins: finalTotalCoins.toDouble(),
-                                totalKg: waste.residues.fold<double>(
-                                    0.0,
-                                    (p, r) =>
-                                        p +
-                                        (double.tryParse(
-                                                r.approxKg.toString()) ??
-                                            0.0)),
+                                totalKg: totalKg.value,
                                 correctlySegregated: segregatedCount,
                                 residues: updatedResidues,
                                 userReference: waste.userReference,
                                 date: waste.date,
+                                requestedAt: waste.requestedAt ?? waste.date,
+                                recycledAt:
+                                    waste.recycledAt, // el provider lo sellará
                               );
 
                               Navigator.of(ctx).pop();
                               await controller.markAsRecycled(updatedWaste);
                               Get.snackbar(
-                                "Recolección completada",
-                                "La recolección ha sido marcada como reciclada",
+                                "Recolección procesada",
+                                "La recolección ha sido marcada como procesada",
                                 backgroundColor: Colors.green.withOpacity(0.7),
                                 colorText: Colors.white,
                               );
@@ -791,12 +967,11 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF59D999),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                                  borderRadius: BorderRadius.circular(10)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             child: const Text(
-                              "Guardar y Marcar como Reciclado",
+                              "Guardar y Marcar como Procesado",
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -804,15 +979,12 @@ class HomecollectorPage extends GetView<HomecollectorController> {
                       if (waste.isRecycled)
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(ctx).pop();
-                            },
+                            onPressed: () => Navigator.of(ctx).pop(),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey.shade300,
                               foregroundColor: Colors.black87,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                                  borderRadius: BorderRadius.circular(10)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             child: const Text("Cerrar"),

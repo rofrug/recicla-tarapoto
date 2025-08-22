@@ -44,9 +44,14 @@ class HomecollectorController extends GetxController {
     try {
       isUpdating.value = true;
 
-      // Aseguramos que el flag isRecycled quede en true, sin tocar totales/fields.
-      final updated = waste.copyWith(isRecycled: true);
-      await _provider.updateWasteCollection(waste.id, updated);
+      // No sellamos fechas aquí (lo hará el provider con serverTimestamp()).
+      // Solo nos aseguramos de que requestedAt esté poblado al menos con legacy `date` si existe.
+      final updated = waste.copyWith(
+        isRecycled: true,
+        requestedAt: waste.requestedAt ?? waste.date,
+      );
+
+      await _provider.markAsRecycledWithServerTimestamps(updated);
     } catch (e) {
       Get.snackbar('Error', 'No se pudo marcar como reciclado');
       rethrow;

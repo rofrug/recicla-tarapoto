@@ -19,6 +19,52 @@ class WasteCollectionsProvider {
             .toList());
   }
 
+  Future<void> markAsRecycledWithServerTimestamps(
+      WasteCollectionModel updatedModel) async {
+    try {
+      if (updatedModel.totalKg <= 0) {
+        Get.snackbar(
+          'Datos inválidos',
+          'El total de Kg debe ser mayor a 0.',
+          snackPosition: SnackPosition.TOP,
+        );
+        throw ArgumentError(
+            'totalKg debe ser > 0 en markAsRecycledWithServerTimestamps');
+      }
+
+      final ref =
+          _firestore.collection('wasteCollections').doc(updatedModel.id);
+
+      final Map<String, dynamic> update = {
+        'isRecycled': true,
+        'totalBags': updatedModel.totalBags,
+        'totalCoins': updatedModel.totalCoins,
+        'totalKg': updatedModel.totalKg,
+        'correctlySegregated': updatedModel.correctlySegregated,
+        'residues': updatedModel.residues.map((r) => r.toMap()).toList(),
+        'recycledAt': FieldValue.serverTimestamp(),
+      };
+
+      // requestedAt (compat): si viene, úsalo; si no, usa legacy "date"; si tampoco, server time.
+      if (updatedModel.requestedAt != null) {
+        update['requestedAt'] = Timestamp.fromDate(updatedModel.requestedAt!);
+        update['date'] =
+            Timestamp.fromDate(updatedModel.requestedAt!); // compat
+      } else if (updatedModel.date != null) {
+        update['requestedAt'] = Timestamp.fromDate(updatedModel.date!);
+        update['date'] = Timestamp.fromDate(updatedModel.date!); // compat
+      } else {
+        update['requestedAt'] = FieldValue.serverTimestamp();
+        update['date'] = FieldValue.serverTimestamp(); // compat
+      }
+
+      await ref.update(update);
+    } catch (e) {
+      Get.snackbar('Error', 'No se pudo marcar como reciclado');
+      rethrow;
+    }
+  }
+
   /// Recolecciones COMPLETADAS (historial) SIN orderBy para evitar índice compuesto.
   /// El orden por fecha desc se aplica en HomecollectorController.
   Stream<List<WasteCollectionModel>> getCompletedWasteCollections(
