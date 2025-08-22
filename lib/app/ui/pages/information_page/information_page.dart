@@ -5,8 +5,13 @@ import 'package:recicla_tarapoto_1/app/controllers/information_controller.dart';
 class InformationScreen extends GetView<InformationController> {
   const InformationScreen({Key? key}) : super(key: key);
 
+  static const Color kPrimary = Color(0xFF31ADA0);
+  static const Color kPrimary2 = Color(0xFF59D999);
+  static const Color kInk = Colors.black87;
+
   @override
   Widget build(BuildContext context) {
+    // ---------- DATA (se mantiene tu contenido oficial) ----------
     final List<String> descriptions = [
       "Cada establecimiento puede producir diferentes cantidades y tipos de residuos, esto según su tipo de actividades, consumo de productos, o a las actividades a las que se dedique.",
       "La recolección de residuos en nuestra ciudad tiene horarios y también días preestablecidos para cada sector. Los sectores cuentan con jirones o avenidas según su ubicación.",
@@ -81,370 +86,538 @@ class InformationScreen extends GetView<InformationController> {
           "Al reducir el volumen de residuos inorgánicos, se extiende la vida útil de los rellenos sanitarios y se posterga la necesidad de abrir nuevos.",
     ];
 
-    final PageController simplePageController = PageController();
+    // ---------- Controllers para carouseles (con viewportFraction para efecto carrusel) ----------
+    final PageController pageController =
+        PageController(viewportFraction: 0.92);
+    final RxInt currentPage = 0.obs;
+
+    final PageController segregationController =
+        PageController(viewportFraction: 0.92);
+    final RxInt segregationPage = 0.obs;
+
+    final PageController simplePageController =
+        PageController(viewportFraction: 0.92);
     final RxInt simpleCurrentPage = 0.obs;
-    final PageController pageController = PageController();
-    final RxInt currentPage = 0.obs; // Página seleccionada reactiva
-    final RxInt segregationPage =
-        0.obs; // Página seleccionada del segundo carrusel
+
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ---------- HERO / HEADER ----------
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [kPrimary, kPrimary2],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: kPrimary.withOpacity(.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  )
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Información sobre Reciclaje',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: .2,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    '¿Por qué es importante reciclar?',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    "El reciclaje es fundamental para reducir la contaminación ambiental y conservar recursos naturales. "
+                    "Al reciclar, ayudamos a disminuir la cantidad de basura enviada a los vertederos, lo cual es clave para un desarrollo sostenible.",
+                    textAlign: TextAlign.justify,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      height: 1.45,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 22),
+
+            // ---------- SECCIÓN 1 ----------
+            _SectionTitle(
+              icon: Icons.recycling,
+              title: 'Etapas de la Gestión de Residuos',
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: size.height * 0.68,
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    controller: pageController,
+                    onPageChanged: (i) => currentPage.value = i,
+                    itemCount: descriptions.length,
+                    itemBuilder: (_, index) {
+                      return _StageCard(
+                        imagePath: imagePaths[index],
+                        title: titles[index],
+                        description: descriptions[index],
+                      );
+                    },
+                  ),
+                  // dots
+                  Positioned(
+                    bottom: 14,
+                    left: 0,
+                    right: 0,
+                    child: Obx(() => _Dots(
+                          length: descriptions.length,
+                          current: currentPage.value,
+                        )),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 26),
+
+            // ---------- SECCIÓN 2 ----------
+            _SectionTitle(
+              icon: Icons.report_problem_outlined,
+              title: 'Principales Problemas de la Gestión de Residuos Sólidos',
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: size.height * 0.68,
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    controller: segregationController,
+                    onPageChanged: (i) => segregationPage.value = i,
+                    itemCount: segregationTitles.length,
+                    itemBuilder: (_, index) {
+                      final isLast = index == segregationTitles.length - 1;
+                      return _SegregationCard(
+                        isLast: isLast,
+                        title: segregationTitles[index],
+                        description: segregationDescriptions[index],
+                        imagePath: segregationImages[index],
+                      );
+                    },
+                  ),
+                  Positioned(
+                    bottom: 14,
+                    left: 0,
+                    right: 0,
+                    child: Obx(() => _Dots(
+                          length: segregationTitles.length,
+                          current: segregationPage.value,
+                        )),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 26),
+
+            // ---------- SECCIÓN 3 ----------
+            _SectionTitle(
+              icon: Icons.emoji_events_outlined,
+              title:
+                  'Principales Beneficios al Segregar y Reciclar Residuos Inorgánicos',
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: size.height * 0.45,
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    controller: simplePageController,
+                    onPageChanged: (i) => simpleCurrentPage.value = i,
+                    itemCount: simpleTitles.length,
+                    itemBuilder: (_, index) {
+                      return _BenefitCard(
+                        title: simpleTitles[index],
+                        description: simpleDescriptions[index],
+                      );
+                    },
+                  ),
+                  Positioned(
+                    bottom: 14,
+                    left: 0,
+                    right: 0,
+                    child: Obx(() => _Dots(
+                          length: simpleTitles.length,
+                          current: simpleCurrentPage.value,
+                        )),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 3),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ======= Widgets de apoyo estilizados =======
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0x1A31ADA0),
+          ),
+          padding: const EdgeInsets.all(8),
+          child: const Icon(Icons.check, color: _StageCard.kPrimary, size: 18),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Row(
+            children: [
+              Icon(icon, color: _StageCard.kPrimary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: _StageCard.kInk,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Dots extends StatelessWidget {
+  const _Dots({required this.length, required this.current});
+  final int length;
+  final int current;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(length, (i) {
+        final active = i == current;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: active ? 22 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: active
+                ? Colors.white
+                : const Color.fromRGBO(63, 188, 159, 1), // consistente
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    )
+                  ]
+                : null,
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _StageCard extends StatelessWidget {
+  const _StageCard({
+    required this.imagePath,
+    required this.title,
+    required this.description,
+  });
+
+  final String imagePath;
+  final String title;
+  final String description;
+
+  static const kPrimary = InformationScreen.kPrimary;
+  static const kPrimary2 = InformationScreen.kPrimary2;
+  static const kInk = InformationScreen.kInk;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2),
+      child: Card(
+        elevation: 6,
+        shadowColor: kPrimary.withOpacity(.18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Expanded(
+              flex: 5,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(imagePath, fit: BoxFit.cover),
+                  // Sutil overlay para legibilidad si la foto es muy clara
+                  Container(color: Colors.black12.withOpacity(.05)),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 4,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [kPrimary, kPrimary2],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      textAlign: TextAlign.justify,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        height: 1.4,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegregationCard extends StatelessWidget {
+  const _SegregationCard({
+    required this.isLast,
+    required this.title,
+    required this.description,
+    required this.imagePath,
+  });
+
+  final bool isLast;
+  final String title;
+  final String description;
+  final String imagePath;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2),
+      child: Card(
+        elevation: 6,
+        shadowColor: InformationScreen.kPrimary.withOpacity(.18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            // Texto arriba con gradiente verde
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    InformationScreen.kPrimary,
+                    InformationScreen.kPrimary2
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: isLast
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: const [
+                        Text(
+                          "Gestión de Residuos Sólidos",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          "Los beneficios de una buena gestión y segregación de los residuos desde nuestros hogares son innumerables, y poniendo nuestro granito de arena haremos que esto funcione.",
+                          textAlign: TextAlign.justify,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            height: 1.4,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 14),
+                        Text(
+                          "Cada pequeño esfuerzo cuenta.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          "¡Hagamos de nuestro Tarapoto un lugar más sostenible!",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 18.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          description,
+                          textAlign: TextAlign.justify,
+                          style: const TextStyle(
+                            fontSize: 15.5,
+                            height: 1.4,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+            // Imagen debajo
+            Expanded(
+              child: Image.asset(
+                imagePath,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BenefitCard extends StatelessWidget {
+  const _BenefitCard({required this.title, required this.description});
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6.0),
+      child: Card(
+        color: InformationScreen.kPrimary2,
+        elevation: 6,
+        shadowColor: InformationScreen.kPrimary.withOpacity(.18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Información sobre Reciclaje',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '¿Por qué es importante reciclar?',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18.5,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                "El reciclaje es fundamental para reducir la contaminación ambiental y conservar recursos naturales. "
-                "Al reciclar, ayudamos a disminuir la cantidad de basura enviada a los vertederos, lo cual es clave para un desarrollo sostenible.",
-                style: TextStyle(
-                  fontSize: 16,
-                  height: 1.5,
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Text(
+                    description,
+                    textAlign: TextAlign.justify,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      height: 1.4,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.justify,
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Etapas de la Gestión de Residuos',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              // Primer carrusel
-              Stack(
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.7,
-                    child: PageView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      controller: pageController,
-                      onPageChanged: (index) {
-                        currentPage.value = index;
-                      },
-                      itemCount: descriptions.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: Image.asset(
-                                    imagePaths[index],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Container(
-                                    width: double.infinity,
-                                    color: const Color(0xFF59D999),
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          titles[index],
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          descriptions[index],
-                                          textAlign: TextAlign.justify,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 15,
-                    left: 0,
-                    right: 0,
-                    child: Obx(() {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(descriptions.length, (index) {
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: currentPage.value == index ? 12 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: currentPage.value == index
-                                  ? const Color(0xFFFFFFFF)
-                                  : const Color.fromRGBO(63, 188, 159, 1),
-                              shape: BoxShape.circle,
-                            ),
-                          );
-                        }),
-                      );
-                    }),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Principales Problemas de la Gestión de Residuos Sólidos',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              // Segundo carrusel
-              Stack(
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.7,
-                    child: PageView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      onPageChanged: (index) {
-                        segregationPage.value = index;
-                      },
-                      itemCount: segregationTitles.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Column(
-                              children: [
-                                // Contenido de texto arriba
-                                Container(
-                                  width: double.infinity,
-                                  color: const Color(0xFF59D999),
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: index == segregationTitles.length - 1
-                                      ? Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: const [
-                                            Text(
-                                              "Gestión de Residuos Sólidos",
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            SizedBox(height: 8),
-                                            Text(
-                                              "Los beneficios de una buena gestión y segregación de los residuos desde nuestros hogares son innumerables, y poniendo nuestro granito de arena haremos que esto funcione.",
-                                              textAlign: TextAlign.justify,
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            SizedBox(height: 16),
-                                            Text(
-                                              "Cada pequeño esfuerzo cuenta.",
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            SizedBox(height: 8),
-                                            Text(
-                                              "¡Hagamos de nuestro Tarapoto un lugar más sostenible!",
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ],
-                                        )
-                                      : Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              segregationTitles[index],
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              segregationDescriptions[index],
-                                              textAlign: TextAlign.justify,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                                // Imagen debajo
-                                Expanded(
-                                  child: Image.asset(
-                                    segregationImages[index],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 15,
-                    left: 0,
-                    right: 0,
-                    child: Obx(() {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children:
-                            List.generate(segregationTitles.length, (index) {
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: segregationPage.value == index ? 12 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: segregationPage.value == index
-                                  ? const Color(0xFFFFFFFF)
-                                  : const Color.fromRGBO(63, 188, 159, 1),
-                              shape: BoxShape.circle,
-                            ),
-                          );
-                        }),
-                      );
-                    }),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Principales Beneficios al Segregar y Reciclar Residuos Inorgánicos',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Stack(
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.45,
-                    child: PageView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      controller: simplePageController,
-                      onPageChanged: (index) {
-                        simpleCurrentPage.value = index;
-                      },
-                      itemCount: simpleTitles.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            color: const Color(0xFF59D999),
-                            clipBehavior: Clip.antiAlias,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    simpleTitles[index],
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    simpleDescriptions[index],
-                                    textAlign: TextAlign.justify,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 25,
-                    left: 0,
-                    right: 0,
-                    child: Obx(() {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(simpleTitles.length, (index) {
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: simpleCurrentPage.value == index ? 12 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: simpleCurrentPage.value == index
-                                  ? const Color(0xFFFFFFFF)
-                                  : const Color.fromRGBO(63, 188, 159, 1),
-                              shape: BoxShape.circle,
-                            ),
-                          );
-                        }),
-                      );
-                    }),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 0),
             ],
           ),
         ),

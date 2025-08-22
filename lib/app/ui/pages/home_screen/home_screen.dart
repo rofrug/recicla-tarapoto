@@ -446,9 +446,9 @@ class HomeScreen extends GetView<HomeScreenController> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: selectedButtons[index][itemIndex]
                       ? const Color(0xFF59D999)
-                      : Colors.grey.shade200,
+                      : const Color.fromARGB(255, 255, 255, 255),
                   foregroundColor: selectedButtons[index][itemIndex]
-                      ? Colors.white
+                      ? const Color.fromARGB(255, 255, 255, 255)
                       : Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),

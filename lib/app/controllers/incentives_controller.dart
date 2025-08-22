@@ -3,9 +3,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:flutter/foundation.dart'; // ← para VoidCallback
+import 'package:flutter/foundation.dart'; // VoidCallback
 
-// Ajusta este import al path real de tu proyecto:
+// Ajusta estos imports si tu estructura cambia
 import '../data/models/incentive.dart';
 import '../data/provider/incentives_provider.dart';
 import 'package:recicla_tarapoto_1/app/controllers/home_controller.dart';
@@ -19,10 +19,8 @@ class IncentivesController extends GetxController {
   /// Lista observable de incentivos
   RxList<Incentive> incentivesList = <Incentive>[].obs;
 
-  /// Flag para bloquear taps repetidos
-  final RxBool _isRedeeming = false.obs;
-
-  bool get isRedeeming => _isRedeeming.value;
+  /// Flag público para bloquear taps repetidos (observable para la UI)
+  final RxBool isRedeeming = false.obs;
 
   @override
   void onInit() {
@@ -37,15 +35,13 @@ class IncentivesController extends GetxController {
     });
   }
 
-  /// Canjea un incentivo (1 unidad) con seguridad + UI optimista:
-  /// - Verifica usuario
-  /// - Verifica monedas (pre-chequeo)
-  /// - Descuenta al instante en UI (optimista) y revierte si falla
-  /// - Transacción Firestore (stock y registro de canje)
-  /// - Reconciliar saldo al final
-  Future<void> redeemIncentive(Incentive incentive) async {
-    if (_isRedeeming.value) return; // evita doble tap
-    _isRedeeming.value = true;
+  /// Nueva API: canjear y devolver éxito/fracaso.
+  /// - NO navega ni cierra diálogos (la vista lo hace).
+  /// - Bloquea doble-tap con [isRedeeming].
+  /// - UI optimista sobre el header de monedas, con revert si falla.
+  Future<bool> confirmRedeem(Incentive incentive) async {
+    if (isRedeeming.value) return false; // ⛔ ya en curso
+    isRedeeming.value = true;
 
     VoidCallback? revert; // para revertir el optimista si falla
     final home = Get.find<HomeController>();
@@ -56,32 +52,32 @@ class IncentivesController extends GetxController {
       if (userData == null) {
         Get.snackbar('Error', 'No se encontró información del usuario',
             snackPosition: SnackPosition.BOTTOM);
-        return;
+        return false;
       }
 
       final String? userId = userData['id'] ?? userData['uid'];
       if (userId == null) {
         Get.snackbar('Error', 'No se encontró el ID del usuario',
             snackPosition: SnackPosition.BOTTOM);
-        return;
+        return false;
       }
 
-      // 2) Pre‑chequeo de monedas (cálculo actual por sumatorias)
+      // 2) Pre-chequeo de monedas
       final double currentCoins = await _getCurrentUserCoins(userId);
       final int cost = _safeToInt(incentive.price);
       if (currentCoins < cost) {
         Get.snackbar(
-          'Monedas Insuficientes',
+          'Monedas insuficientes',
           'No tienes suficientes monedas para canjear este incentivo.',
           snackPosition: SnackPosition.TOP,
         );
-        return;
+        return false;
       }
 
-      // 3) UI Optimista: descontar al instante en header/modal
+      // 3) UI Optimista
       revert = home.optimisticDecrease(cost);
 
-      // 4) Transacción: asegurar stock y registrar canje
+      // 4) Transacción Firestore (stock y registro de canje)
       final incentivesRef =
           FirebaseFirestore.instance.collection('incentives').doc(incentive.id);
       final userRef =
@@ -90,7 +86,6 @@ class IncentivesController extends GetxController {
           userRef.collection('redeemedIncentives').doc(); // auto-id
 
       await FirebaseFirestore.instance.runTransaction((t) async {
-        // Lee incentivo
         final incSnap = await t.get(incentivesRef);
         if (!incSnap.exists) {
           throw FirebaseException(
@@ -107,7 +102,7 @@ class IncentivesController extends GetxController {
         // Decrementa stock
         t.update(incentivesRef, {'stock': FieldValue.increment(-1)});
 
-        // Registra el canje (esto "descuenta" monedas por sumatoria)
+        // Registra el canje (resto por sumatoria)
         t.set(redeemedRef, {
           'incentiveId': incentive.id,
           'name': incentive.name,
@@ -129,10 +124,12 @@ class IncentivesController extends GetxController {
         snackPosition: SnackPosition.TOP,
       );
 
-      // 6) Reconciliar contra BD (por si hubo cambios en paralelo)
+      // 6) Reconciliar saldo por si hubo cambios paralelos
       await home.fetchTotalCoins();
+
+      return true;
     } on FirebaseException catch (e) {
-      // 7) Revertir optimista si la transacción falló
+      // Revertir optimista
       revert?.call();
 
       if (e.code == 'out-of-stock') {
@@ -146,17 +143,18 @@ class IncentivesController extends GetxController {
             snackPosition: SnackPosition.BOTTOM);
       }
 
-      // Refrescar para quedar consistentes
       await home.fetchTotalCoins();
+      return false;
     } catch (e) {
-      // 7) Revertir optimista ante errores inesperados
+      // Revertir optimista ante errores inesperados
       revert?.call();
       Get.snackbar('Error', 'Ocurrió un error al canjear el incentivo.',
           snackPosition: SnackPosition.TOP);
 
       await home.fetchTotalCoins();
+      return false;
     } finally {
-      _isRedeeming.value = false;
+      isRedeeming.value = false;
     }
   }
 
@@ -195,7 +193,7 @@ class IncentivesController extends GetxController {
     return sumWasteCollections - sumRedeemedIncentives;
   }
 
-  // Métodos extra de tu Provider:
+  // Métodos extra de tu Provider (sin cambios)
   Future<void> addIncentive(Incentive incentive) async {
     await _provider.addIncentive(incentive);
   }
@@ -209,7 +207,6 @@ class IncentivesController extends GetxController {
   }
 
   // ----------------- Helpers privados -----------------
-
   int _safeToInt(dynamic v) {
     if (v is int) return v;
     if (v is double) return v.toInt();

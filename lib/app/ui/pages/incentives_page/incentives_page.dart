@@ -88,126 +88,149 @@ class IncentivesScreen extends GetView<IncentivesController> {
 
     showDialog(
       context: context,
+      barrierDismissible:
+          false, // 👈 evita que se cierre mientras está procesando
       builder: (ctx) {
-        final bool sinStockDialog = inc.stock <= 0;
-        return Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.monetization_on,
-                          color: Color(0xFF31ADA0), size: 30),
-                      SizedBox(width: 8),
-                      Text("150 Monedas",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      inc.image,
-                      height: 140,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+        // Capturamos el navigator ANTES de cualquier await para no depender del ctx luego
+        final navigator = Navigator.of(ctx, rootNavigator: true);
+
+        return Obx(() {
+          final busy = controller.isRedeeming.value;
+          final bool sinStockDialog = inc.stock <= 0;
+
+          return Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.monetization_on,
+                            color: Color(0xFF31ADA0), size: 30),
+                        SizedBox(width: 8),
+                        Text("150 Monedas",
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        inc.image,
                         height: 140,
-                        color: Colors.grey[300],
-                        child: const Icon(Icons.broken_image,
-                            size: 60, color: Colors.grey),
-                      ),
-                      loadingBuilder: (context, child, loading) {
-                        if (loading == null) return child;
-                        return const SizedBox(
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
                           height: 140,
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(inc.name,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text("Costo: ${inc.price} monedas",
-                      style:
-                          const TextStyle(fontSize: 16, color: Colors.black87)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: sinStockDialog
-                          ? Colors.redAccent
-                          : const Color(0x1431ADA0),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      sinStockDialog
-                          ? 'Sin stock'
-                          : 'Stock disponible: ${inc.stock}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: sinStockDialog
-                            ? Colors.white
-                            : const Color(0xFF31ADA0),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(inc.description,
-                      textAlign: TextAlign.justify,
-                      style:
-                          const TextStyle(fontSize: 14, color: Colors.black54)),
-                  const Divider(height: 30),
-                  const Text("Proceso para recibir tu premio:",
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  const Text(
-                    "- Una vez confirmado el canje, se descontarán las monedas de tu cuenta.\n"
-                    "- El equipo de ReciclaTarapoto te contactará en un plazo de 48 horas.\n"
-                    "- Deberás acercarte a nuestras oficinas con tu DNI para recoger el premio.",
-                    textAlign: TextAlign.justify,
-                    style: TextStyle(fontSize: 14, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text("Cerrar"),
-                      ),
-                      ElevatedButton(
-                        onPressed: inc.stock <= 0
-                            ? null
-                            : () async {
-                                await controller.redeemIncentive(inc);
-                                Navigator.of(ctx).pop();
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF31ADA0),
-                          foregroundColor: Colors.white,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.broken_image,
+                              size: 60, color: Colors.grey),
                         ),
-                        child: const Text("Confirmar Canje"),
+                        loadingBuilder: (context, child, loading) {
+                          if (loading == null) return child;
+                          return const SizedBox(
+                            height: 140,
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        },
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(inc.name,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text("Costo: ${inc.price} monedas",
+                        style: const TextStyle(
+                            fontSize: 16, color: Colors.black87)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: sinStockDialog
+                            ? Colors.redAccent
+                            : const Color(0x1431ADA0),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        sinStockDialog
+                            ? 'Sin stock'
+                            : 'Stock disponible: ${inc.stock}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: sinStockDialog
+                              ? Colors.white
+                              : const Color(0xFF31ADA0),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(inc.description,
+                        textAlign: TextAlign.justify,
+                        style: const TextStyle(
+                            fontSize: 14, color: Colors.black54)),
+                    const Divider(height: 30),
+                    const Text("Proceso para recibir tu premio:",
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "- Una vez confirmado el canje, se descontarán las monedas de tu cuenta.\n"
+                      "- Tu unidad será reservada según nuestro stock de insentivos.\n"
+                      "- El incentivo será entregado en la próxima visita del recolector.\n"
+                      "- Se tomará evidencia de la entrega mediante una fotografía.",
+                      textAlign: TextAlign.justify,
+                      style: TextStyle(fontSize: 14, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        OutlinedButton(
+                          onPressed: busy ? null : () => navigator.pop(),
+                          child: const Text("Cerrar"),
+                        ),
+                        ElevatedButton(
+                          onPressed: (busy || inc.stock <= 0)
+                              ? null
+                              : () async {
+                                  if (controller.isRedeeming.value) return;
+                                  final ok =
+                                      await controller.confirmRedeem(inc);
+                                  // Cerrar SOLO si fue exitoso
+                                  if (ok) {
+                                    // no usamos ctx aquí: ya tenemos navigator
+                                    navigator.pop();
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF31ADA0),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: busy
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text("Confirmar Canje"),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
+          );
+        });
       },
     );
   }
@@ -246,10 +269,9 @@ class IncentiveCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-// ===== Zona superior: Imagen full-bleed con solo esquinas superiores redondeadas =====
+          // ===== Zona superior: Imagen =====
           AspectRatio(
-            aspectRatio:
-                1 / 1, // puedes subir a 4/3 si la quieres un poquito más alta
+            aspectRatio: 1 / 1,
             child: ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(18),
@@ -258,15 +280,13 @@ class IncentiveCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Imagen cubriendo toda el área superior
                   CachedNetworkImage(
                     imageUrl: imageUrl,
-                    fit: BoxFit.cover, // mantiene full-bleed
+                    fit: BoxFit.cover,
                     alignment: Alignment.center,
                     fadeInDuration: const Duration(milliseconds: 200),
                     fadeOutDuration: const Duration(milliseconds: 150),
-                    useOldImageOnUrlChange:
-                        true, // evita “parpadeo” al reciclar widgets
+                    useOldImageOnUrlChange: true,
                     placeholder: (_, __) =>
                         const Center(child: CircularProgressIndicator()),
                     errorWidget: (_, __, ___) => Container(
@@ -275,11 +295,6 @@ class IncentiveCard extends StatelessWidget {
                           size: 60, color: Colors.grey),
                     ),
                   ),
-
-                  // (Opcional) una veladura muy sutil para que no se “queme” en fotos claras
-                  // Container(color: Colors.black12),
-
-                  // Overlay de AGOTADO si aplica
                   if (stock <= 0)
                     Container(
                       color: Colors.black.withOpacity(0.35),
@@ -361,12 +376,11 @@ class IncentiveCard extends StatelessWidget {
                     const SizedBox(height: 8),
 
                     // Descripción
-                    // Descripción (justificada)
                     Expanded(
                       child: Text(
                         description,
-                        maxLines: 4, // antes 3
-                        textAlign: TextAlign.justify, // 👈 justificar
+                        maxLines: 4,
+                        textAlign: TextAlign.justify,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 14,
@@ -379,7 +393,6 @@ class IncentiveCard extends StatelessWidget {
                     // ===== Footer: Precio + Botón =====
                     Row(
                       children: [
-                        // Bloque de precio
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -392,7 +405,7 @@ class IncentiveCard extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              "\$${price.toStringAsFixed(0)}",
+                              "\$${price.toString()}",
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
@@ -402,8 +415,6 @@ class IncentiveCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(width: 10),
-
-                        // Botón Canjear (full para el resto del ancho)
                         Expanded(
                           child: SizedBox(
                             height: 44,
