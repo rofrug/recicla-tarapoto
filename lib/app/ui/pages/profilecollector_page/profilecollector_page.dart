@@ -5,12 +5,13 @@ import 'package:recicla_tarapoto_1/app/controllers/profilecollector_controller.d
 import 'package:recicla_tarapoto_1/app/controllers/collector_stats_controller.dart';
 import 'package:recicla_tarapoto_1/app/controllers/user_controller.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:recicla_tarapoto_1/app/controllers/user_stats_controller.dart';
 
 class ProfilecollectorPage extends GetView<ProfilecollectorController> {
   ProfilecollectorPage({Key? key}) : super(key: key);
 
-  // Controlador de estadísticas del recolector
   final CollectorStatsController stats = Get.put(CollectorStatsController());
+  final UserStatsController userStats = Get.put(UserStatsController());
 
   // Helpers
   String _safeName() {
@@ -128,8 +129,10 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, double width) {
-    return Container(
+  // ✅ Ahora acepta onTap y usa InkWell para el efecto táctil
+  Widget _buildStatCard(String title, String value, double width,
+      {VoidCallback? onTap}) {
+    final card = Container(
       width: width,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -166,6 +169,56 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
         ],
       ),
     );
+
+    if (onTap == null) return card;
+
+    // Material + InkWell para ripple
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: card,
+      ),
+    );
+  }
+
+  // ✅ Modal reutilizable para detalles
+  void _showStatDetails(String title, String value, String note) {
+    Get.defaultDialog(
+      title: title,
+      titleStyle: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF31ADA0),
+      ),
+      content: Column(
+        children: [
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            note,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black54,
+            ),
+          ),
+        ],
+      ),
+      textConfirm: 'Cerrar',
+      confirmTextColor: Colors.white,
+      buttonColor: const Color(0xFF31ADA0),
+      radius: 10,
+    );
   }
 
   Widget _profileHeader(BuildContext context) {
@@ -200,7 +253,7 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
             ),
             alignment: Alignment.center,
             child: Text(
-              initial,
+              name.isNotEmpty ? _initialsFrom(name) : 'R',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 28,
@@ -254,7 +307,7 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
 
     return Scaffold(
       body: Obx(() {
-        final loading = stats.isLoading.value;
+        final loading = stats.isLoading.value || userStats.isLoading.value;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -294,6 +347,11 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                       'Total de residuos recolectados',
                       '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
                       double.infinity,
+                      onTap: () => _showStatDetails(
+                        'Total de residuos recolectados',
+                        '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
+                        'Este valor corresponde a la suma de los kg de todas tus recolecciones marcadas como completadas.',
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -303,6 +361,11 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                             'Incent. reclamados',
                             '${stats.totalIncentivosEntregados.value}',
                             screenWidth * .45,
+                            onTap: () => _showStatDetails(
+                              'Incentivos reclamados',
+                              '${stats.totalIncentivosEntregados.value}',
+                              'Cantidad de incentivos que han sido entregados a los usuarios (estado: completado).',
+                            ),
                           ),
                         ),
                         const SizedBox(width: 9),
@@ -311,13 +374,28 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                             'Recolec. realizadas',
                             '${stats.totalRecolecciones.value}',
                             screenWidth * .45,
+                            onTap: () => _showStatDetails(
+                              'Recolecciones realizadas',
+                              '${stats.totalRecolecciones.value}',
+                              'Número total de recolecciones que procesaste (isRecycled = true).',
+                            ),
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
+                    _buildStatCard(
+                      'Usuarios registrados',
+                      '${userStats.totalUsuariosRegistrados.value}',
+                      double.infinity,
+                      onTap: () => _showStatDetails(
+                        'Usuarios registrados',
+                        '${userStats.totalUsuariosRegistrados.value}',
+                        'Total de usuarios registrados en el sistema, excluyéndote a ti como recolector (total - 1).',
+                      ),
+                    ),
                   ],
                 ),
-              // ✅ Historial REMOVIDO (vive ahora en HomecollectorPage)
             ],
           ),
         );

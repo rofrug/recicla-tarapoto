@@ -5,12 +5,15 @@ import 'package:recicla_tarapoto_1/app/controllers/user_controller.dart';
 class UserStatsController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final UserController _userController = Get.find<UserController>();
-  
+
   // Variables observables para estadísticas
   final RxDouble totalKgReciclados = 0.0.obs;
   final RxInt totalRecolecciones = 0.obs;
   final RxInt totalIncentivosCanjeados = 0.obs;
-  
+
+  // ✅ Nuevo: total de usuarios registrados (excluyendo al recolector actual)
+  final RxInt totalUsuariosRegistrados = 0.obs;
+
   // Estado de carga
   final RxBool isLoading = false.obs;
 
@@ -28,16 +31,18 @@ class UserStatsController extends GetxController {
     }
 
     isLoading.value = true;
-    
+
     try {
       final String userId = _userController.userModel.value!.uid;
-      
-      // 1. Cargar datos de reciclaje (wasteCollections)
+
+      // 1) Datos de reciclaje (wasteCollections)
       await _loadRecyclingData(userId);
-      
-      // 2. Cargar datos de incentivos canjeados
+
+      // 2) Incentivos canjeados
       await _loadRedeemedIncentives(userId);
-      
+
+      // 3) ✅ Total de usuarios - 1 (excluir recolector actual)
+      await _loadUsersCount(excludeUserId: userId);
     } catch (e) {
       print('Error al cargar estadísticas del usuario: $e');
     } finally {
@@ -49,18 +54,19 @@ class UserStatsController extends GetxController {
   Future<void> _loadRecyclingData(String userId) async {
     try {
       print('Buscando datos de reciclaje para el usuario $userId');
-      
-      // Crear una referencia correcta al documento del usuario
+
+      // Referencia al documento del usuario
       final userRef = _firestore.doc('users/$userId');
-      
-      // Buscar todas las colecciones de residuos recicladas del usuario
+
+      // Recolecciones recicladas del usuario
       final QuerySnapshot wasteCollections = await _firestore
           .collection('wasteCollections')
           .where('userReference', isEqualTo: userRef)
           .where('isRecycled', isEqualTo: true)
           .get();
 
-      print('Se encontraron ${wasteCollections.docs.length} documentos de wasteCollections para el usuario');
+      print(
+          'Se encontraron ${wasteCollections.docs.length} documentos de wasteCollections para el usuario');
 
       // Resetear contadores
       double totalKg = 0.0;
@@ -70,7 +76,7 @@ class UserStatsController extends GetxController {
       for (var doc in wasteCollections.docs) {
         final data = doc.data() as Map<String, dynamic>;
         print('Procesando documento: ${doc.id}');
-        
+
         // Sumar kg totales
         if (data.containsKey('totalKg')) {
           final kg = data['totalKg'];
@@ -79,7 +85,7 @@ class UserStatsController extends GetxController {
             print('Sumando $kg kg al total');
           }
         }
-        
+
         // Contar como una recolección completada
         recolecciones++;
       }
@@ -87,9 +93,9 @@ class UserStatsController extends GetxController {
       // Actualizar variables observables
       totalKgReciclados.value = totalKg;
       totalRecolecciones.value = recolecciones;
-      
-      print('Datos de reciclaje cargados: $totalKg kg, $recolecciones recolecciones');
-      
+
+      print(
+          'Datos de reciclaje cargados: $totalKg kg, $recolecciones recolecciones');
     } catch (e) {
       print('Error al cargar datos de reciclaje: $e');
     }
@@ -108,11 +114,30 @@ class UserStatsController extends GetxController {
 
       // Contar incentivos completados
       totalIncentivosCanjeados.value = incentives.docs.length;
-      
+
       print('Incentivos canjeados cargados: ${incentives.docs.length}');
-      
     } catch (e) {
       print('Error al cargar incentivos canjeados: $e');
+    }
+  }
+
+  /// ✅ Carga el total de usuarios registrados y resta 1 (el recolector actual)
+  Future<void> _loadUsersCount({required String excludeUserId}) async {
+    try {
+      print('Contando usuarios registrados en la colección "users"...');
+      final QuerySnapshot usersSnapshot =
+          await _firestore.collection('users').get();
+
+      int count = usersSnapshot.size;
+      // Evitar negativos en caso extremo (e.g., solo 1 usuario en la colección)
+      if (count > 0) count -= 1;
+
+      totalUsuariosRegistrados.value = count;
+
+      print('Total de usuarios (excluyendo actual): $count');
+    } catch (e) {
+      print('Error al contar usuarios registrados: $e');
+      // Mantener el valor previo si hay error
     }
   }
 
