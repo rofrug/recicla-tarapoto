@@ -166,9 +166,7 @@ class AllRedeemedIncentivesPage
                 _buildStatusWidget(incentive),
                 if (incentive.status == 'pendiente')
                   ElevatedButton.icon(
-                    onPressed: () async {
-                      await controller.markAsCompleted(incentive);
-                    },
+                    onPressed: () => _showConfirmDialog(incentive),
                     icon: const Icon(Icons.check_circle),
                     label: const Text('Completar'),
                     style: ElevatedButton.styleFrom(
@@ -200,6 +198,42 @@ class AllRedeemedIncentivesPage
           ],
         ),
       ),
+    );
+  }
+
+  /// Diálogo de confirmación antes de completar el canje
+  void _showConfirmDialog(RedeemedIncentiveModel incentive) {
+    Get.defaultDialog(
+      title: 'Confirmar entrega',
+      titleStyle: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: colorPrimaryDark,
+      ),
+      middleText:
+          'Vas a confirmar la entrega del incentivo\n“${incentive.name}” a ${incentive.userName}.\n\n'
+          'Esta acción marcará el canje como *Completado* y no se puede deshacer.',
+      textConfirm: 'Sí, confirmar',
+      textCancel: 'Cancelar',
+      confirmTextColor: Colors.white,
+      buttonColor: colorPrimaryDark,
+      onConfirm: () async {
+        // Cierra el diálogo y procede
+        Get.back();
+        await controller.markAsCompleted(incentive);
+        Get.snackbar(
+          'Entrega confirmada',
+          'El incentivo fue marcado como entregado.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.black.withOpacity(0.75),
+          colorText: Colors.white,
+          margin: const EdgeInsets.all(12),
+        );
+      },
+      onCancel: () {
+        Get.back();
+      },
+      radius: 10,
     );
   }
 
