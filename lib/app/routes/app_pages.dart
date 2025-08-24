@@ -9,20 +9,40 @@ import 'package:recicla_tarapoto_1/app/ui/pages/splash_page/splash_page.dart';
 
 import '../ui/pages/home_page/home_page.dart';
 
+// ✅ NUEVOS IMPORTS
+import 'package:recicla_tarapoto_1/app/bindings/users_list_binding.dart';
+import 'package:recicla_tarapoto_1/app/ui/pages/users_list_page/users_list_page.dart';
+
 part './app_routes.dart';
 
 abstract class AppPages {
   static final pages = [
     GetPage(
-        name: Routes.LOGIN, page: () => LoginPage(), binding: LoginBinding()),
+      name: Routes.LOGIN,
+      page: () => LoginPage(),
+      binding: LoginBinding(),
+    ),
     GetPage(
-        name: Routes.SPLASH,
-        page: () => SplashPage(),
-        binding: SplashBinding()),
+      name: Routes.SPLASH,
+      page: () => SplashPage(),
+      binding: SplashBinding(),
+    ),
     GetPage(
-        name: Routes.REGISTER,
-        page: () => RegisterPage(),
-        binding: RegisterBinding()),
-    GetPage(name: Routes.HOME, page: () => HomePage(), binding: HomeBinding()),
+      name: Routes.REGISTER,
+      page: () => RegisterPage(),
+      binding: RegisterBinding(),
+    ),
+    GetPage(
+      name: Routes.HOME,
+      page: () => HomePage(),
+      binding: HomeBinding(),
+    ),
+
+    // ✅ NUEVA RUTA: LISTA DE USUARIOS
+    GetPage(
+      name: Routes.USERS_LIST,
+      page: () => const UsersListPage(),
+      binding: UsersListBinding(),
+    ),
   ];
 }

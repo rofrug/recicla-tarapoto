@@ -1,4 +1,4 @@
-// lib/app/providers/auth_provider.dart
+// lib/app/data/provider/authprovider.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,34 +16,21 @@ class AuthProvider {
   // Iniciar sesión con correo y contraseña
   Future<User?> signInWithEmail(String email, String password) async {
     try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
+      final result = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
-      User? user = result.user;
-      print('Usuario logged');
-      if (user != null) {
-        // Obtenemos el UID del usuario autenticado
-        String uid = user.uid;
+      final user = result.user;
 
-        // Buscamos el usuario en Firestore por su UID
-        DocumentSnapshot userDoc =
-            await _firestore.collection('users').doc(uid).get();
+      if (user != null) {
+        final uid = user.uid;
+        final userDoc = await _firestore.collection('users').doc(uid).get();
 
         if (userDoc.exists) {
-          // Convertimos el documento a nuestro modelo UserModel
-          final userModel = UserModel.fromFirestore(
-            userDoc.data() as Map<String, dynamic>,
-          );
+          final userModel =
+              UserModel.fromFirestore(userDoc.data() as Map<String, dynamic>);
 
-          // Guardamos en GetStorage:
-          //   1) loggedIn = true
-          //   2) userData en formato Map, para luego recuperarlo
-          print('El usuario es recolector: ${userModel.iscollector}');
           _box.write('loggedIn', true);
           _box.write('iscollector', userModel.iscollector);
-
           _box.write('userData', userModel.toFirestore());
-
-          print('Usuario encontrado y almacenado localmente.');
         } else {
           print('Usuario no encontrado en Firestore.');
         }
@@ -60,37 +47,34 @@ class AuthProvider {
       String email, String password, Map<String, dynamic> userData) async {
     try {
       // Crear nuevo usuario en Firebase Auth
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
+      final result = await _auth.createUserWithEmailAndPassword(
           email: email, password: password);
-      User? user = result.user;
+      final user = result.user;
 
       if (user != null) {
-        String uid = user.uid;
+        final uid = user.uid;
 
-        // Guardar la información del usuario en Firestore
+        // ✅ Escribir en Firestore forzando iscollector=false (defensa en profundidad)
         await _firestore.collection('users').doc(uid).set({
-          'address': userData['address'] ?? '',
-          'dni': userData['dni'] ?? '',
-          'lastname': userData['lastname'] ?? '',
-          'name': userData['name'] ?? '',
-          'phone_number': userData['phone_number'] ?? '',
-          'type_user': userData['type_user'] ?? [],
           'uid': uid,
+          'name': userData['name'] ?? '',
+          'lastname': userData['lastname'] ?? '',
+          'email': userData['email'] ?? '', // opcional pero útil
+          'dni': userData['dni'] ?? '',
+          'phone_number': userData['phone_number'] ?? '',
+          'address': userData['address'] ?? '',
+          'type_user': userData['type_user'] ?? [],
+          'iscollector': userData['iscollector'] ?? false, // <- clave aquí
+          'created_at': FieldValue.serverTimestamp(), // opcional
         });
 
-        print('Usuario registrado en Firestore.');
-
-        // Obtenemos el documento recién guardado para almacenarlo localmente
-        DocumentSnapshot userDoc =
-            await _firestore.collection('users').doc(uid).get();
-
+        // Traer y guardar localmente
+        final userDoc = await _firestore.collection('users').doc(uid).get();
         if (userDoc.exists) {
-          final userModel = UserModel.fromFirestore(
-            userDoc.data() as Map<String, dynamic>,
-          );
-
-          // Guardamos en GetStorage
+          final userModel =
+              UserModel.fromFirestore(userDoc.data() as Map<String, dynamic>);
           _box.write('loggedIn', true);
+          _box.write('iscollector', userModel.iscollector);
           _box.write('userData', userModel.toFirestore());
         }
       }
@@ -116,11 +100,8 @@ class AuthProvider {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
-
-      // Al cerrar sesión, limpiamos el Storage
       _box.write('loggedIn', false);
-      _box.remove('userData'); // o .erase() si quieres limpiar todo
-
+      _box.remove('userData');
       print("Sesión cerrada y Storage limpiado.");
     } catch (e) {
       print("Error al cerrar sesión: $e");

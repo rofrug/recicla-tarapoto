@@ -6,6 +6,7 @@ import 'package:recicla_tarapoto_1/app/controllers/collector_stats_controller.da
 import 'package:recicla_tarapoto_1/app/controllers/user_controller.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:recicla_tarapoto_1/app/controllers/user_stats_controller.dart';
+import 'package:recicla_tarapoto_1/app/routes/app_pages.dart';
 
 class ProfilecollectorPage extends GetView<ProfilecollectorController> {
   ProfilecollectorPage({Key? key}) : super(key: key);
@@ -43,7 +44,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
   }
 
   Map<String, String> _collectorInfo() {
-    // Intenta desde UserController
     try {
       final uc = Get.find<UserController>();
       final m = uc.userModel.value;
@@ -59,7 +59,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
         'direccion': (m?.address ?? '—').toString(),
       };
     } catch (_) {
-      // Fallback a GetStorage
       final box = GetStorage('GlobalStorage');
       final data = box.read('userData') as Map?;
       final nombre = (data?['name'] ?? '').toString();
@@ -129,61 +128,66 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
     );
   }
 
-  // ✅ Ahora acepta onTap y usa InkWell para el efecto táctil
-  Widget _buildStatCard(String title, String value, double width,
-      {VoidCallback? onTap}) {
-    final card = Container(
-      width: width,
-      padding: const EdgeInsets.all(16),
+  Widget _buildCompactCard(String title, String value, {VoidCallback? onTap}) {
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF59D999), Color(0xFF31ADA0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
+              color: Colors.black26, blurRadius: 10, offset: Offset(0, 5)),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              )),
-          const SizedBox(height: 8),
-          Text(value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-              )),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            maxLines: 1, // ✅
+            overflow: TextOverflow.ellipsis, // ✅
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18, // lo dejaste en 18 para no generar scroll
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
 
     if (onTap == null) return card;
-
-    // Material + InkWell para ripple
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        splashColor: Colors.white24,
+        highlightColor: Colors.white10,
         onTap: onTap,
         child: card,
       ),
     );
   }
 
-  // ✅ Modal reutilizable para detalles
   void _showStatDetails(String title, String value, String note) {
     Get.defaultDialog(
       title: title,
@@ -192,32 +196,40 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
         fontWeight: FontWeight.w700,
         color: Color(0xFF31ADA0),
       ),
-      content: Column(
-        children: [
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min, // ✅ evita overflow
+          children: [
+            const SizedBox(height: 6),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              maxLines: 2, // ✅ por si el número es largo
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            note,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Colors.black54,
+            const SizedBox(height: 10),
+            Text(
+              note,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black54,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       textConfirm: 'Cerrar',
       confirmTextColor: Colors.white,
       buttonColor: const Color(0xFF31ADA0),
       radius: 10,
+      barrierDismissible: true,
+      onConfirm: Get.back, // ✅ botón Cerrar funcional
     );
   }
 
@@ -239,7 +251,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
       ),
       child: Row(
         children: [
-          // Avatar con inicial
           Container(
             width: 64,
             height: 64,
@@ -262,7 +273,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
             ),
           ),
           const SizedBox(width: 14),
-          // Nombre + rol
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,7 +296,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
               ],
             ),
           ),
-          // Botón cerrar sesión pequeñito
           TextButton.icon(
             onPressed: _logout,
             style: TextButton.styleFrom(
@@ -303,8 +312,6 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
     return Scaffold(
       body: Obx(() {
         final loading = stats.isLoading.value || userStats.isLoading.value;
@@ -327,7 +334,7 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
               _myInfoCard(),
               const SizedBox(height: 10),
               const Text(
-                'Resumen',
+                'Resumen de totales',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -341,57 +348,44 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                   child: CircularProgressIndicator(),
                 ))
               else
-                Column(
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  crossAxisSpacing: 27,
+                  mainAxisSpacing: 6,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 1.7,
                   children: [
-                    _buildStatCard(
-                      'Total de residuos recolectados',
+                    _buildCompactCard(
+                      'Residuos',
                       '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
-                      double.infinity,
                       onTap: () => _showStatDetails(
                         'Total de residuos recolectados',
                         '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
-                        'Este valor corresponde a la suma de los kg de todas tus recolecciones marcadas como completadas.',
+                        'Este valor corresponde a la suma de kg de todos los usuarios registrados.',
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Incent. reclamados',
-                            '${stats.totalIncentivosEntregados.value}',
-                            screenWidth * .45,
-                            onTap: () => _showStatDetails(
-                              'Incentivos reclamados',
-                              '${stats.totalIncentivosEntregados.value}',
-                              'Cantidad de incentivos que han sido entregados a los usuarios (estado: completado).',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Recolec. realizadas',
-                            '${stats.totalRecolecciones.value}',
-                            screenWidth * .45,
-                            onTap: () => _showStatDetails(
-                              'Recolecciones realizadas',
-                              '${stats.totalRecolecciones.value}',
-                              'Número total de recolecciones que procesaste (isRecycled = true).',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    _buildStatCard(
-                      'Usuarios registrados',
+                    _buildCompactCard(
+                      'Usuarios',
                       '${userStats.totalUsuariosRegistrados.value}',
-                      double.infinity,
+                      onTap: () => Get.toNamed(Routes.USERS_LIST),
+                    ),
+                    _buildCompactCard(
+                      'Recolecciones',
+                      '${stats.totalRecolecciones.value}',
                       onTap: () => _showStatDetails(
-                        'Usuarios registrados',
-                        '${userStats.totalUsuariosRegistrados.value}',
-                        'Total de usuarios registrados en el sistema, excluyéndote a ti como recolector (total - 1).',
+                        'Recolecciones realizadas',
+                        '${stats.totalRecolecciones.value}',
+                        'Número total de recolecciones que se están realizando hasta la fecha.',
+                      ),
+                    ),
+                    _buildCompactCard(
+                      'Incentivos',
+                      '${stats.totalIncentivosEntregados.value}',
+                      onTap: () => _showStatDetails(
+                        'Incentivos reclamados',
+                        '${stats.totalIncentivosEntregados.value}',
+                        'Cantidad de incentivos totales que han sido entregados a los usuarios.',
                       ),
                     ),
                   ],

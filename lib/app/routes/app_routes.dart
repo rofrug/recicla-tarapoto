@@ -6,4 +6,7 @@ abstract class Routes {
   static const LOGIN = '/login';
   static const SPLASH = '/splash';
   static const REGISTER = '/register';
+
+  // ✅ NUEVA RUTA
+  static const USERS_LIST = '/users-list';
 }

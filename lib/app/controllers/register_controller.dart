@@ -44,8 +44,8 @@ class RegisterController extends GetxController {
     // Mostrar el loading
     isLoading.value = true;
 
-    // Datos del usuario a registrar
-    Map<String, dynamic> userData = {
+    // Datos del usuario a registrar (todo backend, no visible en UI)
+    final Map<String, dynamic> userData = {
       'name': name,
       'lastname': lastName,
       'email': email,
@@ -53,17 +53,18 @@ class RegisterController extends GetxController {
       'phone_number': phone,
       'address': address,
       'type_user': [selectedUserType],
+      // ✅ por defecto, todo registro es GENERADOR
+      'iscollector': false,
     };
 
     try {
       // Registrar el usuario en Firebase Authentication y guardar en Firestore
-      var user =
+      final user =
           await _authProvider.registerWithEmail(email, password, userData);
 
       if (user != null) {
         Get.snackbar('Registro exitoso', 'Usuario registrado correctamente');
-
-        // ✅ Redirigir al LOGIN y limpiar el stack para que no pueda volver al registro
+        // Redirigir al LOGIN y limpiar el stack para que no pueda volver al registro
         Get.offAllNamed(Routes.LOGIN);
       } else {
         Get.snackbar('Error', 'No se pudo registrar el usuario');
