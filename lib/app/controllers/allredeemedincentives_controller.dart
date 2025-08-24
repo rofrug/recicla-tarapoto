@@ -6,19 +6,23 @@ class AllRedeemedIncentivesController extends GetxController {
   /// Stream con todos los canjes de la subcolección 'redeemedIncentives'
   Stream<List<RedeemedIncentiveModel>> get allRedeemedIncentivesStream {
     return FirebaseFirestore.instance
-        .collectionGroup('redeemedIncentives')
+        .collectionGroup('redeemedIncentives') // Query<Map<String, dynamic>>
         .snapshots()
-        .asyncMap((query) async {
+        .asyncMap((QuerySnapshot<Map<String, dynamic>> query) async {
       final incentives = await Future.wait(query.docs.map((doc) async {
-        final data = doc.data();
+        final Map<String, dynamic> data = doc.data();
         String userName = '';
         String userAddress = '';
 
-        final userDocRef = doc.reference.parent.parent;
+        // ref del usuario dueño del canje (…/users/{uid}/redeemedIncentives/{id})
+        final DocumentReference<Map<String, dynamic>>? userDocRef =
+            doc.reference.parent.parent;
+
         if (userDocRef != null) {
-          final userSnap = await userDocRef.get();
+          final DocumentSnapshot<Map<String, dynamic>> userSnap =
+              await userDocRef.get();
           if (userSnap.exists) {
-            final userData = userSnap.data() as Map<String, dynamic>?;
+            final Map<String, dynamic>? userData = userSnap.data();
             if (userData != null) {
               userName =
                   ('${userData['name'] ?? ''} ${userData['lastname'] ?? ''}')
@@ -30,7 +34,8 @@ class AllRedeemedIncentivesController extends GetxController {
 
         // Fallback si no vino en el doc del usuario
         if (userAddress.isEmpty) {
-          userAddress = data['userAddress'] ?? data['address'] ?? '';
+          userAddress =
+              (data['userAddress'] ?? data['address'] ?? '').toString();
         }
 
         // Usamos la factory (ya maneja qty, refs, etc.)
@@ -76,6 +81,7 @@ class AllRedeemedIncentivesController extends GetxController {
     try {
       await incentive.docRef.update({'status': 'completado'});
     } catch (e) {
+      // ignore: avoid_print
       print('Error actualizando estado: $e');
       rethrow;
     }

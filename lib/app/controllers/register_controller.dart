@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:recicla_tarapoto_1/app/data/provider/authprovider.dart';
+import 'package:recicla_tarapoto_1/app/routes/app_pages.dart';
 
 class RegisterController extends GetxController {
   var nameController = TextEditingController();
   var lastNameController = TextEditingController();
-  var emailController =
-      TextEditingController(); // Nuevo controlador para el email
+  var emailController = TextEditingController();
   var dniController = TextEditingController();
   var phoneController = TextEditingController();
   var addressController = TextEditingController();
@@ -22,7 +22,7 @@ class RegisterController extends GetxController {
   Future<void> registerUser() async {
     String name = nameController.text;
     String lastName = lastNameController.text;
-    String email = emailController.text; // Obtener el correo electrónico
+    String email = emailController.text;
     String dni = dniController.text;
     String phone = phoneController.text;
     String address = addressController.text;
@@ -32,7 +32,7 @@ class RegisterController extends GetxController {
     // Validaciones básicas
     if (name.isEmpty ||
         lastName.isEmpty ||
-        email.isEmpty || // Validar que el email no esté vacío
+        email.isEmpty ||
         dni.isEmpty ||
         phone.isEmpty ||
         address.isEmpty ||
@@ -48,25 +48,29 @@ class RegisterController extends GetxController {
     Map<String, dynamic> userData = {
       'name': name,
       'lastname': lastName,
-      'email': email, // Agregar el correo al mapa de datos
+      'email': email,
       'dni': dni,
       'phone_number': phone,
       'address': address,
-      'type_user': [selectedUserType], // Puedes agregar más tipos si lo deseas
+      'type_user': [selectedUserType],
     };
 
     try {
       // Registrar el usuario en Firebase Authentication y guardar en Firestore
       var user =
           await _authProvider.registerWithEmail(email, password, userData);
+
       if (user != null) {
         Get.snackbar('Registro exitoso', 'Usuario registrado correctamente');
-        // Redirigir o hacer otras acciones
+
+        // ✅ Redirigir al LOGIN y limpiar el stack para que no pueda volver al registro
+        Get.offAllNamed(Routes.LOGIN);
       } else {
         Get.snackbar('Error', 'No se pudo registrar el usuario');
       }
     } catch (e) {
       Get.snackbar('Error', 'Hubo un problema al registrar el usuario');
+      // ignore: avoid_print
       print('Error en el registro: $e');
     } finally {
       // Ocultar el loading
@@ -79,7 +83,7 @@ class RegisterController extends GetxController {
     // Liberar los TextEditingControllers
     nameController.dispose();
     lastNameController.dispose();
-    emailController.dispose(); // Liberar el controlador del email
+    emailController.dispose();
     dniController.dispose();
     phoneController.dispose();
     addressController.dispose();

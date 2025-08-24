@@ -88,12 +88,10 @@ class CollectorStatsController extends GetxController {
 
     try {
       final col = FirebaseFirestore.instance.collection(kWasteCollectionsCol);
-      final snap = await col
-          .get(); // traemos todo y filtramos en memoria (dataset chico/medio)
+      final snap = await col.get(); // dataset chico/medio
 
       for (final d in snap.docs) {
-        final data = d.data();
-        if (data is! Map) continue;
+        final data = d.data(); // Map<String, dynamic>
 
         // Filtra por recolector si existe el campo en el doc (si no existe, asume único recolector)
         final docCollector = data[kFieldCollectorId];
@@ -135,8 +133,7 @@ class CollectorStatsController extends GetxController {
       final snap = await col.get();
 
       for (final d in snap.docs) {
-        final data = d.data();
-        if (data is! Map) continue;
+        final data = d.data(); // Map<String, dynamic>
 
         // Filtra por recolector si existe el campo
         final docCollector = data[kFieldCollectorId];
@@ -186,8 +183,7 @@ class CollectorStatsController extends GetxController {
         final redSnap = await redCol.get();
 
         for (final d in redSnap.docs) {
-          final data = d.data();
-          if (data is! Map) continue;
+          final data = d.data(); // Map<String, dynamic>
 
           final st = (data[kFieldStatus] as String?)?.toLowerCase();
           final completado =
@@ -218,18 +214,15 @@ class CollectorStatsController extends GetxController {
       final usersSnap = await usersCol.get();
 
       for (final u in usersSnap.docs) {
-        final userData = u.data();
-        final userName = (userData is Map
-                ? (userData['name'] ?? userData['fullname'] ?? u.id)
-                : u.id)
-            .toString();
+        final userData = u.data(); // Map<String, dynamic>
+        final userName =
+            (userData['name'] ?? userData['fullname'] ?? u.id).toString();
 
         final redCol = usersCol.doc(u.id).collection(kRedeemedIncentivesSub);
         final redSnap = await redCol.get();
 
         for (final d in redSnap.docs) {
-          final data = d.data();
-          if (data is! Map) continue;
+          final data = d.data(); // Map<String, dynamic>
 
           final st = (data[kFieldStatus] as String?)?.toLowerCase();
           final completado =

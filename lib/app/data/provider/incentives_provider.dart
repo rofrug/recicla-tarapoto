@@ -9,18 +9,20 @@ class IncentivesProvider {
 
   /// Stream de incentivos (incluye 'stock' si existe en documentos)
   Stream<List<Incentive>> getIncentives() {
-    return _firestore.collection('incentives').snapshots().map((snapshot) {
+    return _firestore
+        .collection('incentives')
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
       return snapshot.docs.map((doc) {
-        return Incentive.fromFirestore(
-          doc.data(),
-          doc.id,
-        );
+        final Map<String, dynamic> data = doc.data();
+        return Incentive.fromFirestore(data, doc.id);
       }).toList();
     });
   }
 
   /// Agrega un nuevo incentivo a la colección 'incentives'.
-  Future<DocumentReference> addIncentive(Incentive incentive) async {
+  Future<DocumentReference<Map<String, dynamic>>> addIncentive(
+      Incentive incentive) async {
     try {
       return await _firestore
           .collection('incentives')
@@ -82,13 +84,13 @@ class IncentivesProvider {
   /// Obtiene un incentivo por su ID de documento.
   Future<Incentive?> getIncentiveById(String incentiveId) async {
     try {
-      final doc =
+      final DocumentSnapshot<Map<String, dynamic>> doc =
           await _firestore.collection('incentives').doc(incentiveId).get();
+
       if (doc.exists) {
-        return Incentive.fromFirestore(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
+        final Map<String, dynamic>? data = doc.data();
+        if (data == null) return null;
+        return Incentive.fromFirestore(data, doc.id);
       } else {
         return null;
       }
@@ -113,18 +115,22 @@ class IncentivesProvider {
     int qty = 1,
     String? idempotencyKey,
   }) async {
-    final incentivesRef = _firestore.collection('incentives').doc(incentive.id);
-    final userRef = _firestore.collection('users').doc(userId);
+    final DocumentReference<Map<String, dynamic>> incentivesRef =
+        _firestore.collection('incentives').doc(incentive.id);
+    final DocumentReference<Map<String, dynamic>> userRef =
+        _firestore.collection('users').doc(userId);
 
     // Si llega idempotencyKey, usamos ese como ID del doc de canje
-    final redeemedRef = (idempotencyKey != null && idempotencyKey.isNotEmpty)
-        ? userRef.collection('redeemedIncentives').doc(idempotencyKey)
-        : userRef.collection('redeemedIncentives').doc();
+    final DocumentReference<Map<String, dynamic>> redeemedRef =
+        (idempotencyKey != null && idempotencyKey.isNotEmpty)
+            ? userRef.collection('redeemedIncentives').doc(idempotencyKey)
+            : userRef.collection('redeemedIncentives').doc();
 
     await _firestore.runTransaction((t) async {
       // Idempotencia: si el doc ya existe, no hacer nada
       if (idempotencyKey != null && idempotencyKey.isNotEmpty) {
-        final idemSnap = await t.get(redeemedRef);
+        final DocumentSnapshot<Map<String, dynamic>> idemSnap =
+            await t.get(redeemedRef);
         if (idemSnap.exists) {
           // Ya procesado anteriormente
           return;
@@ -132,7 +138,8 @@ class IncentivesProvider {
       }
 
       // 1) Leer incentivo y validar stock
-      final incSnap = await t.get(incentivesRef);
+      final DocumentSnapshot<Map<String, dynamic>> incSnap =
+          await t.get(incentivesRef);
       if (!incSnap.exists) {
         throw FirebaseException(
           plugin: 'IncentivesProvider',
@@ -140,7 +147,7 @@ class IncentivesProvider {
         );
       }
 
-      final data = incSnap.data() as Map<String, dynamic>? ?? {};
+      final Map<String, dynamic> data = incSnap.data() ?? {};
       final int currentStock = ((data['stock'] ?? 0) as num).toInt();
 
       if (currentStock < qty) {

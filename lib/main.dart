@@ -23,12 +23,14 @@ void main() async {
       // 👇 Limita el escalado de texto globalmente (solo usamos textScaler)
       builder: (context, child) {
         final mq = MediaQuery.of(context);
-        final double clamped =
-            mq.textScaleFactor.clamp(1.0, 1.1); // leemos, pero no lo seteamos
+
+        // Convertir textScaler actual en un double base y limitarlo
+        final double currentScale = mq.textScaler.scale(1.0);
+        final double clamped = currentScale.clamp(1.0, 1.1);
+
         return MediaQuery(
           data: mq.copyWith(
             textScaler: TextScaler.linear(clamped),
-            // ⚠️ NO pongas textScaleFactor aquí, causa la aserción
           ),
           child: child!,
         );

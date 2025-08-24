@@ -78,21 +78,22 @@ class IncentivesController extends GetxController {
       revert = home.optimisticDecrease(cost);
 
       // 4) Transacción Firestore (stock y registro de canje)
-      final incentivesRef =
+      final DocumentReference<Map<String, dynamic>> incentivesRef =
           FirebaseFirestore.instance.collection('incentives').doc(incentive.id);
-      final userRef =
+      final DocumentReference<Map<String, dynamic>> userRef =
           FirebaseFirestore.instance.collection('users').doc(userId);
-      final redeemedRef =
+      final DocumentReference<Map<String, dynamic>> redeemedRef =
           userRef.collection('redeemedIncentives').doc(); // auto-id
 
       await FirebaseFirestore.instance.runTransaction((t) async {
-        final incSnap = await t.get(incentivesRef);
+        final DocumentSnapshot<Map<String, dynamic>> incSnap =
+            await t.get(incentivesRef);
         if (!incSnap.exists) {
           throw FirebaseException(
               plugin: 'IncentivesController', code: 'incentive-not-found');
         }
 
-        final data = incSnap.data() as Map<String, dynamic>? ?? {};
+        final Map<String, dynamic> data = incSnap.data() ?? {};
         final int currentStock = ((data['stock'] ?? 0) as num).toInt();
         if (currentStock <= 0) {
           throw FirebaseException(
@@ -163,17 +164,19 @@ class IncentivesController extends GetxController {
     double sumWasteCollections = 0.0;
     double sumRedeemedIncentives = 0.0;
 
-    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+    final DocumentReference<Map<String, dynamic>> userRef =
+        FirebaseFirestore.instance.collection('users').doc(userId);
 
     // 1) totalCoins de wasteCollections (recolectas efectivas)
-    final wasteCollectionsSnap = await FirebaseFirestore.instance
-        .collection('wasteCollections')
-        .where('userReference', isEqualTo: userRef)
-        .where('isRecycled', isEqualTo: true)
-        .get();
+    final QuerySnapshot<Map<String, dynamic>> wasteCollectionsSnap =
+        await FirebaseFirestore.instance
+            .collection('wasteCollections')
+            .where('userReference', isEqualTo: userRef)
+            .where('isRecycled', isEqualTo: true)
+            .get();
 
-    for (var doc in wasteCollectionsSnap.docs) {
-      final data = doc.data();
+    for (final doc in wasteCollectionsSnap.docs) {
+      final Map<String, dynamic> data = doc.data();
       final num? totalCoins = data['totalCoins'];
       if (totalCoins != null) {
         sumWasteCollections += totalCoins.toDouble();
@@ -181,9 +184,10 @@ class IncentivesController extends GetxController {
     }
 
     // 2) redeemedCoins de redeemedIncentives
-    final redeemedSnap = await userRef.collection('redeemedIncentives').get();
-    for (var doc in redeemedSnap.docs) {
-      final data = doc.data();
+    final QuerySnapshot<Map<String, dynamic>> redeemedSnap =
+        await userRef.collection('redeemedIncentives').get();
+    for (final doc in redeemedSnap.docs) {
+      final Map<String, dynamic> data = doc.data();
       final num? redeemedCoins = data['redeemedCoins'];
       if (redeemedCoins != null) {
         sumRedeemedIncentives += redeemedCoins.toDouble();

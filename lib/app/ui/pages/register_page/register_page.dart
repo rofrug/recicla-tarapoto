@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:recicla_tarapoto_1/widgets/custom_input_field.dart';
+import 'package:recicla_tarapoto_1/app/routes/app_pages.dart';
 import '../../../controllers/register_controller.dart';
 
 class RegisterPage extends GetView<RegisterController> {
@@ -342,7 +343,8 @@ class RegisterPage extends GetView<RegisterController> {
                                         ),
                                         recognizer: TapGestureRecognizer()
                                           ..onTap = () {
-                                            Get.toNamed('/login');
+                                            // ✅ Usa la ruta tipada
+                                            Get.toNamed(Routes.LOGIN);
                                           },
                                       ),
                                     ],

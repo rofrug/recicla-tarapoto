@@ -16,15 +16,17 @@ class UserInventoryProvider {
         .where('iscollector',
             isEqualTo: false) // Filtramos por iscollector = false
         .snapshots()
-        .map((snapshot) {
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
       return snapshot.docs.map((doc) {
-        return UserModel.fromFirestore(doc.data() as Map<String, dynamic>);
+        final Map<String, dynamic> data = doc.data();
+        return UserModel.fromFirestore(data);
       }).toList();
     });
   }
 
   /// Agrega un nuevo usuario a la colección 'users'.
-  Future<DocumentReference> addUser(UserModel user) async {
+  Future<DocumentReference<Map<String, dynamic>>> addUser(
+      UserModel user) async {
     try {
       return await _firestore.collection('users').add(user.toFirestore());
     } catch (e) {
@@ -87,10 +89,13 @@ class UserInventoryProvider {
   /// Obtiene un usuario por su ID de documento.
   Future<UserModel?> getUserById(String userId) async {
     try {
-      DocumentSnapshot doc =
+      final DocumentSnapshot<Map<String, dynamic>> doc =
           await _firestore.collection('users').doc(userId).get();
+
       if (doc.exists) {
-        return UserModel.fromFirestore(doc.data() as Map<String, dynamic>);
+        final Map<String, dynamic>? data = doc.data();
+        if (data == null) return null;
+        return UserModel.fromFirestore(data);
       } else {
         return null;
       }
