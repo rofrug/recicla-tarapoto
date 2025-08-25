@@ -16,6 +16,9 @@ class HomeScreen extends GetView<HomeScreenController> {
   //------------------------------------------------------------------
   // 1. Diálogo de confirmación final (resumen):
   //------------------------------------------------------------------
+  //------------------------------------------------------------------
+  // 1. Diálogo de confirmación final (resumen) — FIXED
+  //------------------------------------------------------------------
   void _showConfirmationDialog(
     BuildContext context, {
     required List<Map<String, dynamic>> resumenResiduos,
@@ -24,210 +27,218 @@ class HomeScreen extends GetView<HomeScreenController> {
     required int totalBolsas,
     required int segregadosCorrectamente,
   }) {
-    // Barrera extra: si por algún motivo llega 0, no continuar.
     if (totalKg <= 0) {
-      Get.snackbar(
-        "Datos inválidos",
-        "Debes ingresar al menos 1 Kg para enviar la solicitud.",
-        snackPosition: SnackPosition.TOP,
-      );
+      Get.snackbar("Datos inválidos", "Debes ingresar al menos 1 Kg.",
+          snackPosition: SnackPosition.TOP);
       return;
     }
 
+    bool saving = false;
+
     showDialog(
       context: context,
+      barrierDismissible: !saving,
       builder: (ctx) {
-        // Bono por bolsas: +30 por cada tipo marcado
         final int bonusCoinsFromSegregados = segregadosCorrectamente * 30;
-        // El total final es base + bono
         final double finalTotalMonedasARecibir =
             totalMonedasBase + bonusCoinsFromSegregados.toDouble();
 
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min, // Ajusta el tamaño
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Título
-                const Text(
-                  "Resumen de Solicitud",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                const SizedBox(height: 10),
-
-                // Listado de cada residuo seleccionado
-                if (resumenResiduos.isEmpty)
-                  const Text("No seleccionaste ningún residuo.")
-                else
-                  ...resumenResiduos.map((res) {
-                    final tipo = res["tipo"];
-                    final kg = res["kg"];
-                    final bolsa = res["bolsa"] == true ? "Sí" : "No";
-                    final items = (res["items"] as List).join(", ");
-                    return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF4F6F5),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: const Color(0xFF59D999), width: 1),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "• $tipo",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Color.fromARGB(255, 31, 211, 157),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Resumen de Solicitud",
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    if (resumenResiduos.isEmpty)
+                      const Text("No seleccionaste ningún residuo.")
+                    else
+                      ...resumenResiduos.map((res) {
+                        final tipo = res["tipo"];
+                        final kg = res["kg"];
+                        final bolsa = res["bolsa"] == true ? "Sí" : "No";
+                        final items = (res["items"] as List).join(", ");
+                        return Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F6F5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF59D999),
+                              width: 1,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text("Items: $items"),
-                          Text("Cantidad: $kg Kg"),
-                          Text("Bolsa individual: $bolsa"),
-                        ],
-                      ),
-                    );
-                  }),
-
-                const Divider(thickness: 1.2),
-                // Totales (ahora scrollable y adaptable)
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("• $tipo",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Color(0xFF1FDB9D),
+                                  )),
+                              const SizedBox(height: 4),
+                              Text("Items: $items"),
+                              Text("Cantidad: $kg Kg"),
+                              Text("Bolsa individual: $bolsa"),
+                            ],
+                          ),
+                        );
+                      }),
+                    const Divider(thickness: 1.2),
+                    Text("Total de Residuos: $totalKg"),
+                    Text(" - Monedas (base): $totalMonedasBase"),
+                    Text("Segregados Correctamente: $segregadosCorrectamente"),
+                    Text(" - Bono por bolsas: $bonusCoinsFromSegregados"),
+                    Text(
+                        "Total de Monedas a Recibir: $finalTotalMonedasARecibir"),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text("Total de Residuos: $totalKg", softWrap: true),
-                        Text(" - Monedas (base): $totalMonedasBase",
-                            softWrap: true),
-                        Text(
-                            "Segregados Correctamente: $segregadosCorrectamente",
-                            softWrap: true),
-                        Text(" - Bono por bolsas: $bonusCoinsFromSegregados",
-                            softWrap: true),
-                        Text(
-                            "Total de Monedas a Recibir: $finalTotalMonedasARecibir",
-                            softWrap: true),
-                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed:
+                              saving ? null : () => Navigator.of(ctx).pop(),
+                          child: const Text("Cancelar"),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  // bloquea UI del diálogo
+                                  if (Get.isDialogOpen == true) {
+                                    setState(() => saving = true);
+                                  }
+
+                                  try {
+                                    final userController =
+                                        Get.find<UserController>();
+                                    final userData =
+                                        userController.userModel.value;
+                                    if (userData == null) {
+                                      throw "No se encontró información de usuario.";
+                                    }
+
+                                    final Map<String, int> ratesByType = {
+                                      'Papel y Cartón': 50,
+                                      'Plástico': 100,
+                                      'Metales': 50,
+                                    };
+
+                                    final residueItems =
+                                        resumenResiduos.map((res) {
+                                      final int kgInt =
+                                          (res["kg"] as double).toInt();
+                                      final String tipo = res["tipo"] as String;
+                                      final bool bolsa = res["bolsa"] as bool;
+                                      final int rate = ratesByType[tipo] ?? 0;
+
+                                      final int coinsBase = kgInt * rate;
+                                      final int coinsFinal =
+                                          coinsBase + (bolsa ? 30 : 0);
+
+                                      return ResidueItem(
+                                        approxKg: kgInt.toDouble(),
+                                        coinsPerType: coinsFinal.toString(),
+                                        individualBag: bolsa,
+                                        selectedItems: (res["items"] as List)
+                                            .cast<String>(),
+                                        type: tipo,
+                                      );
+                                    }).toList();
+
+                                    final totalCoinsFinal = totalMonedasBase +
+                                        (segregadosCorrectamente * 30);
+
+                                    final wasteCollection =
+                                        WasteCollectionModel(
+                                      id: '',
+                                      address: userData.address,
+                                      isRecycled: false,
+                                      totalBags: totalBolsas.toDouble(),
+                                      totalCoins: totalCoinsFinal,
+                                      totalKg: totalKg,
+                                      correctlySegregated:
+                                          segregadosCorrectamente,
+                                      residues: residueItems,
+                                      userReference: FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(userData.uid),
+                                      date: DateTime.now(),
+                                    );
+
+                                    // ⏳ Evita cuelgues eternos
+                                    await Get.find<HomeScreenController>()
+                                        .createWasteCollection(wasteCollection)
+                                        .timeout(const Duration(seconds: 15));
+
+                                    // Cierra el diálogo si aún está abierto
+                                    await Navigator.of(ctx).maybePop();
+
+                                    Get.snackbar(
+                                      "Solicitud Enviada",
+                                      "Tu solicitud ha sido confirmada y guardada.",
+                                      backgroundColor: const Color(0xFF59D999),
+                                      colorText: Colors.white,
+                                    );
+                                  } catch (e) {
+                                    Get.snackbar(
+                                      "Error",
+                                      e.toString(),
+                                      backgroundColor: Colors.red,
+                                      colorText: Colors.white,
+                                    );
+                                  } finally {
+                                    if (Get.isDialogOpen == true) {
+                                      // solo si el diálogo sigue abierto
+                                      setState(() => saving = false);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF59D999),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text("Confirmar"),
+                        ),
                       ],
                     ),
-                  ),
-                ),
-
-                // Botones "Cancelar" y "Confirmar"
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      child: const Text("Cancelar"),
-                      onPressed: () {
-                        Navigator.of(ctx).pop(); // cierra resumen sin confirmar
-                      },
-                    ),
-                    ElevatedButton(
-                      child: const Text("Confirmar"),
-                      onPressed: () async {
-                        Navigator.of(ctx).pop();
-
-                        // (1) Obtenemos los datos del usuario (dirección, uid, etc.)
-                        final userController = Get.find<UserController>();
-                        final userData = userController.userModel.value;
-                        if (userData == null) {
-                          Get.snackbar(
-                            "Error",
-                            "No se encontró información de usuario.",
-                            backgroundColor: Colors.red,
-                            colorText: Colors.white,
-                          );
-                          return;
-                        }
-
-                        // (2) Mapeamos los residuos al modelo ResidueItem
-                        final Map<String, int> ratesByType = {
-                          'Papel y Cartón': 50,
-                          'Plástico': 100,
-                          'Metales': 50,
-                        };
-
-                        final List<ResidueItem> residueItems =
-                            resumenResiduos.map((res) {
-                          final int kgInt = (res["kg"] as double).toInt();
-                          final String tipo = res["tipo"] as String;
-                          final bool bolsa = res["bolsa"] as bool;
-                          final int rate = ratesByType[tipo] ?? 0;
-
-                          final int coinsBase = kgInt * rate;
-                          final int coinsFinal =
-                              coinsBase + (bolsa ? 30 : 0); // bono fijo
-
-                          return ResidueItem(
-                            approxKg: kgInt.toDouble(),
-                            coinsPerType: coinsFinal
-                                .toString(), // guardamos el final por tipo
-                            individualBag: bolsa,
-                            selectedItems:
-                                (res["items"] as List).cast<String>(),
-                            type: tipo,
-                          );
-                        }).toList();
-
-                        // (3) Construimos nuestro WasteCollectionModel
-                        final totalCoinsFinal =
-                            totalMonedasBase + (segregadosCorrectamente * 30);
-
-                        final wasteCollection = WasteCollectionModel(
-                          id: '', // se asignará automáticamente
-                          address: userData.address,
-                          isRecycled: false,
-                          totalBags: totalBolsas.toDouble(),
-                          totalCoins: totalCoinsFinal,
-                          totalKg: totalKg,
-                          correctlySegregated: segregadosCorrectamente,
-                          residues: residueItems,
-                          userReference: FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(userData.uid),
-                          date: DateTime.now(),
-                        );
-
-                        // (4) Llamamos al método en el controller para guardar en Firestore
-                        await controller.createWasteCollection(wasteCollection);
-
-                        // (5) Notificamos al usuario
-                        Get.snackbar(
-                          "Solicitud Enviada",
-                          "Tu solicitud ha sido confirmada y guardada.",
-                          backgroundColor: const Color(0xFF59D999),
-                          colorText: Colors.white,
-                        );
-                      },
-                    ),
                   ],
-                )
-              ],
-            ),
-          ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  //------------------------------------------------------------------
   // 2. Diálogo de marcar bolsa individual (actualizado a +30)
   //------------------------------------------------------------------
   void _showBolsaDialog() {

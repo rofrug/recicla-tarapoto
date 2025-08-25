@@ -2,6 +2,9 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// 👇 Importamos el modelo para parsear los residuos con seguridad
+import 'package:recicla_tarapoto_1/app/data/models/residue_item.dart';
+
 class CollectorStatsController extends GetxController {
   // Estado
   final RxBool isLoading = true.obs;
@@ -14,6 +17,17 @@ class CollectorStatsController extends GetxController {
   final RxDouble totalKgRecolectado = 0.0.obs;
   final RxInt totalRecolecciones = 0.obs;
   final RxInt totalIncentivosEntregados = 0.obs;
+
+  // Totales por tipo y porcentajes
+  final RxMap<String, double> kgByType = <String, double>{}.obs;
+  final RxMap<String, double> pctByType = <String, double>{}.obs;
+
+  // Tipos conocidos (ajusta si tus strings cambian)
+  static const List<String> knownTypes = [
+    'Papel y Cartón',
+    'Plástico',
+    'Metales',
+  ];
 
   // Meta semanal
   final RxDouble weeklyGoalKg = 50.0.obs; // puedes ajustar
@@ -69,11 +83,11 @@ class CollectorStatsController extends GetxController {
         _loadWeekKg(),
         _loadDeliveredIncentives(),
         _loadPendingIncentives(),
+        _loadKgByType(), // 👈 NUEVO: totales por tipo + %
         _loadNextRouteLabel(), // opcional
       ]);
       lastUpdated.value = DateTime.now();
     } catch (e, st) {
-      // Log básico
       // ignore: avoid_print
       print('❗ CollectorStats _loadAll error: $e\n$st');
     } finally {
@@ -88,12 +102,12 @@ class CollectorStatsController extends GetxController {
 
     try {
       final col = FirebaseFirestore.instance.collection(kWasteCollectionsCol);
-      final snap = await col.get(); // dataset chico/medio
+      final snap = await col.get();
 
       for (final d in snap.docs) {
-        final data = d.data(); // Map<String, dynamic>
+        final data = d.data();
 
-        // Filtra por recolector si existe el campo en el doc (si no existe, asume único recolector)
+        // Filtra por recolector si existe el campo en el doc
         final docCollector = data[kFieldCollectorId];
         if (collectorId != null && docCollector is String) {
           if (docCollector != collectorId) continue;
@@ -133,7 +147,7 @@ class CollectorStatsController extends GetxController {
       final snap = await col.get();
 
       for (final d in snap.docs) {
-        final data = d.data(); // Map<String, dynamic>
+        final data = d.data();
 
         // Filtra por recolector si existe el campo
         final docCollector = data[kFieldCollectorId];
@@ -183,14 +197,14 @@ class CollectorStatsController extends GetxController {
         final redSnap = await redCol.get();
 
         for (final d in redSnap.docs) {
-          final data = d.data(); // Map<String, dynamic>
+          final data = d.data();
 
           final st = (data[kFieldStatus] as String?)?.toLowerCase();
           final completado =
               st == 'completado' || st == 'completed' || st == 'finalizado';
           if (!completado) continue;
 
-          // Si ya guardas deliveredBy, filtra. Si no, cuenta igual (único recolector)
+          // Si ya guardas deliveredBy, filtra. Si no, cuenta igual
           final deliveredBy = data[kFieldDeliveredBy];
           if (collectorId != null && deliveredBy is String) {
             if (deliveredBy != collectorId) continue;
@@ -214,7 +228,7 @@ class CollectorStatsController extends GetxController {
       final usersSnap = await usersCol.get();
 
       for (final u in usersSnap.docs) {
-        final userData = u.data(); // Map<String, dynamic>
+        final userData = u.data();
         final userName =
             (userData['name'] ?? userData['fullname'] ?? u.id).toString();
 
@@ -222,7 +236,7 @@ class CollectorStatsController extends GetxController {
         final redSnap = await redCol.get();
 
         for (final d in redSnap.docs) {
-          final data = d.data(); // Map<String, dynamic>
+          final data = d.data();
 
           final st = (data[kFieldStatus] as String?)?.toLowerCase();
           final completado =
@@ -276,9 +290,111 @@ class CollectorStatsController extends GetxController {
 
   // -------- Próxima recolección (placeholder) --------
   Future<void> _loadNextRouteLabel() async {
-    // Si tienes una colección routes asignadas por collectorId, consulta aquí.
-    // Por ahora, dejamos un fallback simple:
     nextRouteLabel.value = 'Miércoles 7:00–15:30 (Zona A)';
+  }
+
+  // -------- Totales por tipo + porcentajes --------
+  Future<void> _loadKgByType() async {
+    // Inicializar con 0 para asegurar claves presentes
+    final Map<String, double> acc = {
+      for (final t in knownTypes) t: 0.0,
+    };
+
+    try {
+      final col = FirebaseFirestore.instance.collection(kWasteCollectionsCol);
+      final snap = await col.get();
+
+      for (final d in snap.docs) {
+        final data = d.data();
+
+        // Filtra por recolector si existe el campo
+        final docCollector = data[kFieldCollectorId];
+        if (collectorId != null && docCollector is String) {
+          if (docCollector != collectorId) continue;
+        }
+
+        // Solo registros completados
+        final status = (data[kFieldStatus] as String?)?.toLowerCase();
+        final isRecycled = data[kFieldIsRecycled] == true;
+        final completado = isRecycled == true ||
+            status == 'completado' ||
+            status == 'completed' ||
+            status == 'finalizado';
+        if (!completado) continue;
+
+        // Leer residuos (array)
+        final rawResidues = data['residues'];
+        if (rawResidues is List) {
+          for (final r in rawResidues) {
+            if (r is Map<String, dynamic>) {
+              final item = ResidueItem.fromMap(r);
+              final normalized = _normalizeType(item.type);
+              if (normalized == null) continue;
+              acc[normalized] = (acc[normalized] ?? 0.0) + item.approxKg;
+            }
+          }
+        }
+      }
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('❗ _loadKgByType error: $e\n$st');
+    }
+
+    // Actualizar kg por tipo
+    kgByType
+      ..clear()
+      ..addAll(acc);
+
+    // Calcular porcentajes
+    final total = acc.values.fold<double>(0.0, (a, b) => a + b);
+    final Map<String, double> pct = {};
+    if (total > 0) {
+      acc.forEach((k, v) {
+        pct[k] = double.parse(((v / total) * 100).toStringAsFixed(1));
+      });
+    } else {
+      for (final t in knownTypes) {
+        pct[t] = 0.0;
+      }
+    }
+
+    pctByType
+      ..clear()
+      ..addAll(pct);
+  }
+
+  // Normaliza nombres de tipo del dato crudo a los "knownTypes"
+  String? _normalizeType(String raw) {
+    final t = raw.trim().toLowerCase();
+    if (t.isEmpty) return null;
+
+    if (t.contains('papel') || t.contains('cartón') || t.contains('carton')) {
+      return 'Papel y Cartón';
+    }
+    if (t.contains('plast')) {
+      return 'Plástico';
+    }
+    if (t.contains('metal') || t.contains('chatarra') || t.contains('lata')) {
+      return 'Metales';
+    }
+    // Si no coincide, puedes retornarlo tal cual o ignorarlo.
+    // return raw; // <- si quieres conservar otros tipos
+    return null; // <- ignorar tipos desconocidos
+  }
+
+  // Helpers para leer desde la UI
+  double kgFor(String type) => kgByType[type] ?? 0.0;
+  double pctFor(String type) => pctByType[type] ?? 0.0;
+
+  /// Estructura útil para pie charts u otros widgets:
+  /// [{label: 'Plástico', value: 60.0}, ...] en %
+  List<Map<String, dynamic>> get pieData {
+    return knownTypes
+        .map((t) => {
+              'label': t,
+              'value': pctFor(t),
+            })
+        .toList();
   }
 
   Future<void> createDelayAlert({String? message}) async {

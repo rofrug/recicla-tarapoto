@@ -7,6 +7,7 @@ import 'package:recicla_tarapoto_1/app/controllers/user_controller.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:recicla_tarapoto_1/app/controllers/user_stats_controller.dart';
 import 'package:recicla_tarapoto_1/app/routes/app_pages.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfilecollectorPage extends GetView<ProfilecollectorController> {
   ProfilecollectorPage({Key? key}) : super(key: key);
@@ -163,11 +164,11 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
           Text(
             value,
             textAlign: TextAlign.center,
-            maxLines: 1, // ✅
-            overflow: TextOverflow.ellipsis, // ✅
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 18, // lo dejaste en 18 para no generar scroll
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -198,13 +199,13 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
       ),
       content: SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min, // ✅ evita overflow
+          mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 6),
             Text(
               value,
               textAlign: TextAlign.center,
-              maxLines: 2, // ✅ por si el número es largo
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 26,
@@ -229,13 +230,12 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
       buttonColor: const Color(0xFF31ADA0),
       radius: 10,
       barrierDismissible: true,
-      onConfirm: Get.back, // ✅ botón Cerrar funcional
+      onConfirm: Get.back,
     );
   }
 
   Widget _profileHeader(BuildContext context) {
     final name = _safeName();
-    final initial = _initialsFrom(name);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -310,6 +310,291 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
     );
   }
 
+  // =========================
+  // 🔁 Lógica para “Desglose por tipo”
+  // =========================
+
+  Future<Map<String, double>> _fetchResidueBreakdown() async {
+    // claves normalizadas
+    const papel = 'Papel/Cartón';
+    const plastico = 'Plástico';
+    const metales = 'Metales';
+
+    final box = GetStorage('GlobalStorage');
+    final userData = box.read('userData');
+    final String? uid = (userData is Map && userData['uid'] is String)
+        ? userData['uid'] as String
+        : null;
+
+    final Map<String, double> sumByType = {
+      papel: 0.0,
+      plastico: 0.0,
+      metales: 0.0,
+    };
+
+    try {
+      final col = FirebaseFirestore.instance.collection('wasteCollections');
+      final snap = await col.get();
+
+      for (final d in snap.docs) {
+        final data = d.data();
+
+        // completado?
+        final isRecycled = data['isRecycled'] == true;
+        final status = (data['status'] as String?)?.toLowerCase();
+        final completado = isRecycled ||
+            status == 'completado' ||
+            status == 'completed' ||
+            status == 'finalizado';
+        if (!completado) continue;
+
+        // filtrar por recolector si el doc lo trae
+        if (uid != null && data['collectorId'] is String) {
+          if (data['collectorId'] != uid) continue;
+        }
+
+        // residues es una lista de mapas con {type, approxKg, ...}
+        final residues = data['residues'];
+        if (residues is List) {
+          for (final r in residues) {
+            if (r is Map<String, dynamic>) {
+              final rawType = (r['type'] ?? '').toString().toLowerCase();
+              double kg = 0.0;
+              final v = r['approxKg'];
+              if (v is num) kg = v.toDouble();
+              if (v is String) kg = double.tryParse(v) ?? 0.0;
+
+              String key;
+              if (rawType.contains('plást') || rawType.contains('plast')) {
+                key = plastico;
+              } else if (rawType.contains('metal')) {
+                key = metales;
+              } else {
+                key = papel;
+              }
+              sumByType[key] = (sumByType[key] ?? 0) + kg;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    return sumByType;
+  }
+
+  Widget _kgCard(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF59D999), Color(0xFF31ADA0)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5)),
+          const SizedBox(height: 6),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18)),
+        ],
+      ),
+    );
+  }
+
+  Widget _percentRow(String label, double pct) {
+    final clamped = pct.clamp(0, 100);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+                child: Text(label,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 12))),
+            Text('${clamped.toStringAsFixed(0)}%',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: (clamped / 100),
+            minHeight: 8,
+            backgroundColor: const Color(0xFF59D999).withOpacity(.2),
+            color: const Color(0xFF31ADA0),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 👉 Nuevo: sin FutureBuilder ni overlay; esperamos datos y mostramos
+  Future<void> _openBreakdownDialog() async {
+    try {
+      // 1) Cargar datos primero
+      final data =
+          await _fetchResidueBreakdown().timeout(const Duration(seconds: 12));
+
+      // Valores y % con guardas
+      final vPapel = (data['Papel/Cartón'] ?? 0.0);
+      final vPlast = (data['Plástico'] ?? 0.0);
+      final vMet = (data['Metales'] ?? 0.0);
+      final total = (vPapel + vPlast + vMet);
+      double pct(double v) => total == 0 ? 0 : (v / total) * 100.0;
+
+      // 2) Mostrar un general dialog bien contenido
+      await Get.generalDialog(
+        barrierDismissible: true,
+        barrierLabel: 'Cerrar',
+        barrierColor: Colors.black54,
+        transitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (context, _, __) {
+          return SafeArea(
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 520, // evita diálogos gigantes
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 16,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'Desglose por tipo',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF31ADA0),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (total <= 0) ...[
+                            const Padding(
+                              padding: EdgeInsets.only(top: 6),
+                              child: Text(
+                                'Aún no hay residuos completados para desglose.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ] else ...[
+                            // Tarjetas de kg
+                            GridView.count(
+                              crossAxisCount: 3,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 1.0,
+                              children: [
+                                _kgCard('Papel/Cartón',
+                                    '${vPapel.toStringAsFixed(1)} kg'),
+                                _kgCard('Plástico',
+                                    '${vPlast.toStringAsFixed(1)} kg'),
+                                _kgCard(
+                                    'Metales', '${vMet.toStringAsFixed(1)} kg'),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Porcentajes
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 8,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  _percentRow('Papel/Cartón', pct(vPapel)),
+                                  const SizedBox(height: 10),
+                                  _percentRow('Plástico', pct(vPlast)),
+                                  const SizedBox(height: 10),
+                                  _percentRow('Metales', pct(vMet)),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: ElevatedButton(
+                              onPressed: Get.back,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF31ADA0),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: const Text('Cerrar'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'No se pudo cargar el desglose.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -356,14 +641,11 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                   physics: const NeverScrollableScrollPhysics(),
                   childAspectRatio: 1.7,
                   children: [
+                    // “Residuos” -> abre breakdown
                     _buildCompactCard(
                       'Residuos',
                       '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
-                      onTap: () => _showStatDetails(
-                        'Total de residuos recolectados',
-                        '${stats.totalKgRecolectado.value.toStringAsFixed(1)} Kg',
-                        'Este valor corresponde a la suma de kg de todos los usuarios registrados.',
-                      ),
+                      onTap: _openBreakdownDialog,
                     ),
                     _buildCompactCard(
                       'Usuarios',
@@ -390,6 +672,7 @@ class ProfilecollectorPage extends GetView<ProfilecollectorController> {
                     ),
                   ],
                 ),
+              // (el breakdown en pantalla se eliminó)
             ],
           ),
         );

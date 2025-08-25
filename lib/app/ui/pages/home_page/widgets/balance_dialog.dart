@@ -1,14 +1,13 @@
+// lib/app/ui/pages/home_page/widgets/balance_dialog.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:recicla_tarapoto_1/app/controllers/home_controller.dart';
-
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 
 class BalanceDialog extends StatefulWidget {
   const BalanceDialog({super.key});
-
   @override
   State<BalanceDialog> createState() => _BalanceDialogState();
 }
@@ -16,32 +15,25 @@ class BalanceDialog extends StatefulWidget {
 class _BalanceDialogState extends State<BalanceDialog> {
   static const Color primaryGreen = Color(0xFF16A34A);
 
-  // Audio simple
   late final AudioPlayer _player = AudioPlayer();
   bool _audioReady = false;
   bool _disposed = false;
 
-  // Timer para disparar a los 700ms
   Timer? _t700;
   bool _timerArmed = false;
   bool _played = false;
 
-  // Ruta del asset
   static const String _assetKey = 'lib/assets/sounds/coin.mp3';
-
-  // Duración de tu animación
   static const Duration _countAnimDuration = Duration(milliseconds: 800);
   static const Duration _offset700 = Duration(milliseconds: 400);
 
   @override
   void initState() {
     super.initState();
-
-    // Traer saldo
+    // refrescamos saldo al abrir el diálogo
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Get.find<HomeController>().fetchTotalCoins();
     });
-
     _setupAudio();
   }
 
@@ -50,10 +42,9 @@ class _BalanceDialogState extends State<BalanceDialog> {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
       await session.setActive(true);
-
       await _player.setLoopMode(LoopMode.off);
       await _player.setVolume(1.0);
-      await _player.setAsset(_assetKey); // precarga
+      await _player.setAsset(_assetKey);
       _audioReady = true;
     } catch (_) {
       _audioReady = false;
@@ -115,9 +106,10 @@ class _BalanceDialogState extends State<BalanceDialog> {
                 color: primaryGreen,
               ),
             ),
+
+            // 👇 Obx SIN genérico
             Obx(() {
               if (home.isLoadingCoins.value) {
-                // Mientras carga, reseteamos banderas por si re-entra
                 _t700?.cancel();
                 _timerArmed = false;
                 _played = false;
@@ -135,13 +127,13 @@ class _BalanceDialogState extends State<BalanceDialog> {
                 );
               }
 
-              final coins = home.totalCoins.value;
+              // 👇 double, no Rx
+              final double coins = home.totalCoins.value;
 
               return TweenAnimationBuilder<double>(
-                key: ValueKey(coins),
-                tween: Tween<double>(begin: 0, end: coins),
+                key: ValueKey<double>(coins),
+                tween: Tween<double>(begin: 0.0, end: coins),
                 duration: _countAnimDuration,
-                // Respaldo: si por algún motivo no sonó a los 700ms, suena al terminar
                 onEnd: () {
                   if (!_played) {
                     _t700?.cancel();
@@ -149,8 +141,7 @@ class _BalanceDialogState extends State<BalanceDialog> {
                     _playOnce();
                   }
                 },
-                builder: (_, value, __) {
-                  // Armar el timer de 700ms en el primer build de esta animación
+                builder: (_, double value, __) {
                   if (!_timerArmed) {
                     _timerArmed = true;
                     _t700?.cancel();
@@ -192,6 +183,7 @@ class _BalanceDialogState extends State<BalanceDialog> {
                 },
               );
             }),
+
             const SizedBox(height: 6),
             const Text(
               "¿Cómo conseguir más?",
