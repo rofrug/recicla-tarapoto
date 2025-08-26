@@ -6,8 +6,8 @@ import '../../../data/models/redeemed_incentive_model.dart';
 
 class AllRedeemedIncentivesPage
     extends GetView<AllRedeemedIncentivesController> {
-  const AllRedeemedIncentivesPage({Key? key}) : super(key: key);
-
+  AllRedeemedIncentivesPage({Key? key}) : super(key: key);
+  final RxBool _confirming = false.obs;
   // Colores primarios de la app
   static const Color colorPrimaryLight = Color(0xFF59D999);
   static const Color colorPrimaryDark = Color(0xFF31ADA0);
@@ -217,21 +217,55 @@ class AllRedeemedIncentivesPage
       textCancel: 'Cancelar',
       confirmTextColor: Colors.white,
       buttonColor: colorPrimaryDark,
+
+      // ✅ evita cerrar por toque fuera
+      barrierDismissible: false,
+
       onConfirm: () async {
-        // Cierra el diálogo y procede
-        Get.back();
-        await controller.markAsCompleted(incentive);
-        Get.snackbar(
-          'Entrega confirmada',
-          'El incentivo fue marcado como entregado.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.black.withOpacity(0.75),
-          colorText: Colors.white,
-          margin: const EdgeInsets.all(12),
-        );
+        // ✅ anti doble-tap
+        if (_confirming.value) return;
+        _confirming.value = true;
+
+        try {
+          // ✅ cierra TODOS los overlays antes de procesar
+          if (Get.isDialogOpen ?? false) {
+            Get.back(closeOverlays: true);
+          }
+
+          // 🔧 procesa
+          await controller.markAsCompleted(incentive);
+
+          // ✅ feedback
+          Get.snackbar(
+            'Entrega confirmada',
+            'El incentivo fue marcado como entregado.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.black.withOpacity(0.75),
+            colorText: Colors.white,
+            margin: const EdgeInsets.all(12),
+          );
+        } catch (e) {
+          // Mensaje de error visible
+          Get.snackbar(
+            'Error',
+            'No se pudo completar la entrega. Inténtalo de nuevo.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        } finally {
+          _confirming.value = false;
+
+          // 🧯 por si quedara algún overlay abierto (defensivo)
+          if (Get.isDialogOpen ?? false) {
+            Get.back(closeOverlays: true);
+          }
+        }
       },
+
+      // ✅ no hace falta cerrar manual aquí; pero si lo dejas, que sea defensivo
       onCancel: () {
-        Get.back();
+        if (Get.isDialogOpen ?? false) {
+          Get.back(closeOverlays: true);
+        }
       },
       radius: 10,
     );

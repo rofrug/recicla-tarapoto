@@ -69,11 +69,11 @@ class HomeScreenController extends GetxController {
   /// Desplazamiento automático para el carrusel (scroll infinito simulado)
   void _autoScroll() {
     // Cada 100ms avanza 1 pixel
-    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    Timer.periodic(const Duration(milliseconds: 5), (timer) {
       if (scrollController.hasClients) {
         final double maxScroll = scrollController.position.maxScrollExtent;
         final double currentScroll = scrollController.position.pixels;
-        final double newScroll = currentScroll + 1;
+        final double newScroll = currentScroll + 0.1;
 
         if (newScroll >= maxScroll) {
           scrollController.jumpTo(0); // Reinicia el scroll

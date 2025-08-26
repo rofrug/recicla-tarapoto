@@ -10,12 +10,12 @@ import 'package:recicla_tarapoto_1/app/data/models/residue_item.dart';
 // Modelos
 import 'package:recicla_tarapoto_1/app/data/models/waste_collection.dart';
 
+// ✅ NUEVO: carga eficiente de imágenes
+import 'package:cached_network_image/cached_network_image.dart';
+
 class HomeScreen extends GetView<HomeScreenController> {
   const HomeScreen({Key? key}) : super(key: key);
 
-  //------------------------------------------------------------------
-  // 1. Diálogo de confirmación final (resumen):
-  //------------------------------------------------------------------
   //------------------------------------------------------------------
   // 1. Diálogo de confirmación final (resumen) — FIXED
   //------------------------------------------------------------------
@@ -120,7 +120,6 @@ class HomeScreen extends GetView<HomeScreenController> {
                           onPressed: saving
                               ? null
                               : () async {
-                                  // bloquea UI del diálogo
                                   if (Get.isDialogOpen == true) {
                                     setState(() => saving = true);
                                   }
@@ -182,12 +181,10 @@ class HomeScreen extends GetView<HomeScreenController> {
                                       date: DateTime.now(),
                                     );
 
-                                    // ⏳ Evita cuelgues eternos
                                     await Get.find<HomeScreenController>()
                                         .createWasteCollection(wasteCollection)
                                         .timeout(const Duration(seconds: 15));
 
-                                    // Cierra el diálogo si aún está abierto
                                     await Navigator.of(ctx).maybePop();
 
                                     Get.snackbar(
@@ -205,7 +202,6 @@ class HomeScreen extends GetView<HomeScreenController> {
                                     );
                                   } finally {
                                     if (Get.isDialogOpen == true) {
-                                      // solo si el diálogo sigue abierto
                                       setState(() => saving = false);
                                     }
                                   }
@@ -369,16 +365,13 @@ class HomeScreen extends GetView<HomeScreenController> {
             ),
             // Icono de bolsa usando el controlador para la activación
             Obx(() {
-              // Se ejecuta cada vez que cambia updateUI
               controller.updateUI.value;
 
-              // Verificamos si hay texto en el campo y si algún botón está seleccionado
               final bool hasText = kgControllers[index].text.isNotEmpty;
               final bool anyButtonSelected =
                   selectedButtons[index].contains(true);
               final bool isEnabled = hasText && anyButtonSelected;
 
-              // Si no hay botones seleccionados, asegurémonos de que el ícono esté gris
               if (!anyButtonSelected && selectedIcons[index]) {
                 selectedIcons[index] = false;
                 calculateTotals();
@@ -394,10 +387,9 @@ class HomeScreen extends GetView<HomeScreenController> {
                     Icons.shopping_bag,
                     color: isEnabled
                         ? (selectedIcons[index]
-                            ? const Color(
-                                0xFF59D999) // Verde cuando está seleccionado
+                            ? const Color(0xFF59D999)
                             : Colors.grey)
-                        : Colors.grey.withOpacity(0.5), // Deshabilitado
+                        : Colors.grey.withOpacity(0.5),
                   ),
                   onPressed: isEnabled
                       ? () {
@@ -423,35 +415,21 @@ class HomeScreen extends GetView<HomeScreenController> {
             return Obx(
               () => ElevatedButton(
                 onPressed: () {
-                  // Cambiar el estado del botón actual
                   selectedButtons[index][itemIndex] =
                       !selectedButtons[index][itemIndex];
 
-                  // Verificar si todos los tipos de residuos están desmarcados
                   final anySelected = selectedButtons[index].contains(true);
 
-                  // Si ningún botón está seleccionado, reiniciar todo
                   if (!anySelected) {
-                    // Deshabilitar el campo de kg
                     isKgFieldEnabled[index] = false;
-
-                    // Limpiar el campo de kilos
                     kgControllers[index].clear();
-
-                    // Reiniciar el ícono de segregación correcta
                     selectedIcons[index] = false;
-
-                    // Actualizar los valores unitarios (base)
                     unitValuesBase[index].value = 0.0;
-
-                    // Forzar un rebuild para actualizar la UI
                     controller.refreshUI();
                   } else {
-                    // Si hay al menos un botón seleccionado, habilitar el campo
                     isKgFieldEnabled[index] = true;
                   }
 
-                  // Recalcular los totales
                   calculateTotals();
                 },
                 style: ElevatedButton.styleFrom(
@@ -486,7 +464,6 @@ class HomeScreen extends GetView<HomeScreenController> {
                   ],
                   enabled: isKgFieldEnabled[index],
                   onChanged: (value) {
-                    // Notificar al controlador que debe actualizar la UI
                     controller.refreshUI();
                     calculateTotals();
                   },
@@ -526,7 +503,7 @@ class HomeScreen extends GetView<HomeScreenController> {
                     final double display =
                         unitValuesBase[index].value + bonus.toDouble();
                     return Text(
-                      "${display.toStringAsFixed(0)}",
+                      display.toStringAsFixed(0),
                       style: const TextStyle(fontSize: 18),
                     );
                   },
@@ -547,7 +524,6 @@ class HomeScreen extends GetView<HomeScreenController> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // Definimos cada tipo de residuo y sus items
     final residuos = [
       {
         "tipo": "Papel y Cartón",
@@ -563,14 +539,12 @@ class HomeScreen extends GetView<HomeScreenController> {
       },
     ];
 
-    // Tarifas por tipo (pts/kg)
     final Map<String, int> ratesByType = {
       'Papel y Cartón': 50,
       'Plástico': 100,
       'Metales': 50,
     };
 
-    // Declaramos variables reactivas para controlar selección y totales
     final kgControllers = <TextEditingController>[];
     final unitValuesBase = <RxDouble>[]; // solo base (kg * rate), sin bono
     final totalKg = 0.0.obs;
@@ -586,13 +560,11 @@ class HomeScreen extends GetView<HomeScreenController> {
     final isKgFieldEnabled = List.filled(residuos.length, false).obs;
     final isKgFieldNotEmpty = List.generate(residuos.length, (_) => false.obs);
 
-    // Creamos un controller y un valor unitValue para cada tipo de residuo
     for (var _ in residuos) {
       kgControllers.add(TextEditingController());
       unitValuesBase.add(0.0.obs);
     }
 
-    // Recalcula totales cuando algo cambia
     void _calculateTotals() {
       totalKg.value = 0.0;
       totalMonedasBase.value = 0.0;
@@ -601,14 +573,12 @@ class HomeScreen extends GetView<HomeScreenController> {
 
       for (var i = 0; i < residuos.length; i++) {
         if (isKgFieldEnabled[i]) {
-          // Solo enteros, mínimo 1 para sumar
           final int kgInt = int.tryParse(kgControllers[i].text) ?? 0;
           final int kgValid = kgInt >= 1 ? kgInt : 0;
 
           final String tipo = residuos[i]["tipo"] as String;
           final int rate = ratesByType[tipo] ?? 0;
 
-          // Base por tipo (sin el bono de bolsa)
           final int baseCoins = kgValid * rate;
           unitValuesBase[i].value = baseCoins.toDouble();
 
@@ -616,13 +586,11 @@ class HomeScreen extends GetView<HomeScreenController> {
           totalMonedasBase.value += unitValuesBase[i].value;
 
           if (selectedIcons[i] && kgValid > 0) {
-            // solo cuenta como segregado si hay kg válidos
             segregadosCorrectamente.value += 1;
           }
         }
       }
 
-      // Cada tipo de residuo activado con kg válidos cuenta como 1 bolsa
       totalBolsas.value = 0;
       for (var i = 0; i < residuos.length; i++) {
         if (isKgFieldEnabled[i]) {
@@ -632,7 +600,6 @@ class HomeScreen extends GetView<HomeScreenController> {
       }
     }
 
-    // Listeners para recalcular si se modifican Kg en cualquier TextField
     for (var controllerTF in kgControllers) {
       controllerTF.addListener(_calculateTotals);
     }
@@ -690,7 +657,6 @@ class HomeScreen extends GetView<HomeScreenController> {
                         ),
                         const SizedBox(height: 8),
 
-                        // Lista en formato enumerado
                         const Text(
                           "1. Selecciona el tipo de residuo.",
                           textAlign: TextAlign.justify,
@@ -744,7 +710,7 @@ class HomeScreen extends GetView<HomeScreenController> {
                     ),
                   ),
                 ),
-                // Botón final: ahora reactivo y deshabilitado si totalKg <= 0
+                // Botón final
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16.0),
                   child: Obx(() {
@@ -757,10 +723,8 @@ class HomeScreen extends GetView<HomeScreenController> {
                       child: ElevatedButton(
                         onPressed: canSubmit
                             ? () {
-                                // 1) Cerramos este diálogo
                                 Navigator.of(ctx).pop();
 
-                                // 2) Generamos un listado de lo que se seleccionó para mostrarlo
                                 final List<Map<String, dynamic>> resumen = [];
                                 for (var i = 0; i < residuos.length; i++) {
                                   if (isKgFieldEnabled[i]) {
@@ -768,11 +732,10 @@ class HomeScreen extends GetView<HomeScreenController> {
                                     final int kgInt =
                                         int.tryParse(kgControllers[i].text) ??
                                             0;
-                                    if (kgInt < 1)
-                                      continue; // aseguramos mínimo 1
+                                    if (kgInt < 1) continue;
                                     final kg = kgInt.toDouble();
                                     final bolsa = selectedIcons[i];
-                                    // Recolectamos también los items marcados
+
                                     final selectedItems = <String>[];
                                     for (var j = 0;
                                         j < selectedButtons[i].length;
@@ -791,7 +754,6 @@ class HomeScreen extends GetView<HomeScreenController> {
                                   }
                                 }
 
-                                // 3) Mostramos el diálogo de confirmación/resumen
                                 _showConfirmationDialog(
                                   context,
                                   resumenResiduos: resumen,
@@ -802,7 +764,7 @@ class HomeScreen extends GetView<HomeScreenController> {
                                       segregadosCorrectamente.value,
                                 );
                               }
-                            : null, // deshabilita el botón
+                            : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF59D999),
                           shape: RoundedRectangleBorder(
@@ -886,16 +848,19 @@ class HomeScreen extends GetView<HomeScreenController> {
             ),
           ),
 
-          // Carrusel
+          // Carrusel (se mantiene tu ListView, solo cambia la carga de imagen)
           SizedBox(
             height: carouselHeight,
             width: screenWidth,
             child: Obx(() {
-              final images = controller.carouselImages;
+              final images = [
+                ...controller.carouselImages
+              ]; // copia para no alterar original
+              images.shuffle(); // 👈 aleatorio
+
               if (images.isEmpty) {
                 return const Center(
-                  child: Text('No hay imágenes para el carrusel'),
-                );
+                    child: Text('No hay imágenes para el carrusel'));
               }
               return ListView.builder(
                 controller: controller.scrollController,
@@ -912,9 +877,9 @@ class HomeScreen extends GetView<HomeScreenController> {
                           decoration: BoxDecoration(
                             border: Border.all(
                               color: imageModel.tipo == 'premio'
-                                  ? const Color(0xFFFFD700)
+                                  ? const Color.fromARGB(255, 251, 255, 0)
                                   : const Color.fromARGB(0, 81, 255, 0),
-                              width: 4.5,
+                              width: 6,
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -922,25 +887,20 @@ class HomeScreen extends GetView<HomeScreenController> {
                             borderRadius: BorderRadius.circular(8),
                             child: Stack(
                               children: [
-                                // Imagen principal
-                                Image.network(
-                                  imageModel.url,
+                                // 🔁 Reemplazo: CachedNetworkImage
+                                CachedNetworkImage(
+                                  imageUrl: imageModel.url,
                                   fit: BoxFit.cover,
                                   width: screenWidth * 0.3,
                                   height: double.infinity,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(Icons.broken_image,
-                                        size: 50, color: Colors.grey);
-                                  },
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return const Center(
-                                        child: CircularProgressIndicator());
-                                  },
+                                  placeholder: (context, url) => const Center(
+                                      child: CircularProgressIndicator()),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(Icons.broken_image,
+                                          size: 50, color: Colors.grey),
                                 ),
 
-                                // Texto en la parte inferior directamente sobre la imagen
+                                // Texto en la parte inferior
                                 Positioned(
                                   bottom: 0,
                                   left: 0,
@@ -948,17 +908,28 @@ class HomeScreen extends GetView<HomeScreenController> {
                                   child: Container(
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 4),
-                                    color: const Color.fromRGBO(89, 217, 153, 1)
-                                        .withOpacity(0.9),
                                     alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: const Color.fromARGB(
+                                          255, 89, 217, 153),
+                                      border: Border.all(
+                                        color: const Color.fromARGB(
+                                            255, 89, 217, 153),
+                                        width:
+                                            imageModel.tipo == 'premio' ? 3 : 1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
                                     child: Text(
                                       imageModel.tipo == 'premio'
-                                          ? 'premio'
-                                          : 'Participación',
-                                      style: const TextStyle(
+                                          ? 'INCENTIVO'
+                                          : 'PARTICIPACIÓN',
+                                      style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: imageModel.tipo == 'premio'
+                                            ? FontWeight.w700
+                                            : FontWeight.w300,
                                       ),
                                     ),
                                   ),
@@ -975,9 +946,16 @@ class HomeScreen extends GetView<HomeScreenController> {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color.fromARGB(255, 255, 255, 255)
-                                  .withOpacity(1),
+                              color: imageModel.tipo == 'premio'
+                                  ? const Color.fromARGB(255, 251, 255, 0)
+                                  : const Color.fromARGB(255, 255, 255, 255),
                               borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: imageModel.tipo == 'premio'
+                                    ? const Color.fromARGB(255, 251, 255, 0)
+                                    : Colors.white,
+                                width: imageModel.tipo == 'premio' ? 3 : 1,
+                              ),
                             ),
                             child: Text(
                               imageModel.tipo == 'premio' ? '🏆' : '🤝',
