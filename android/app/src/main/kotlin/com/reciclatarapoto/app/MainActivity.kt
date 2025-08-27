@@ -1,4 +1,4 @@
-package com.example.recicla_tarapoto_1
+package com.reciclatarapoto.app
 
 import io.flutter.embedding.android.FlutterActivity
 
