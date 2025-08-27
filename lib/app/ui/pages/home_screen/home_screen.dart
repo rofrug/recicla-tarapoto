@@ -941,19 +941,19 @@ class HomeScreen extends GetView<HomeScreenController> {
 
                         // Emoji distintivo arriba a la izquierda
                         Positioned(
-                          top: -6,
-                          left: 86,
+                          top: 0,
+                          left: 81,
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
                               color: imageModel.tipo == 'premio'
                                   ? const Color.fromARGB(255, 251, 255, 0)
-                                  : const Color.fromARGB(255, 255, 255, 255),
+                                  : const Color.fromARGB(255, 89, 217, 153),
                               borderRadius: BorderRadius.circular(30),
                               border: Border.all(
                                 color: imageModel.tipo == 'premio'
                                     ? const Color.fromARGB(255, 251, 255, 0)
-                                    : Colors.white,
+                                    : const Color.fromARGB(255, 255, 255, 255),
                                 width: imageModel.tipo == 'premio' ? 3 : 1,
                               ),
                             ),
