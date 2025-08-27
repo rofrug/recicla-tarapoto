@@ -1,11 +1,9 @@
-// lib/modules/home/views/splash_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import '../../../controllers/splash_controller.dart';
 
 class SplashPage extends GetView<SplashController> {
-  final controller = Get.put(SplashController());
+  const SplashPage({super.key}); // ✅ opcional
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +13,7 @@ class SplashPage extends GetView<SplashController> {
           gradient: LinearGradient(
             colors: [
               Color.fromRGBO(89, 217, 153, 1),
-              Color.fromRGBO(49, 173, 161, 1)
+              Color.fromRGBO(49, 173, 161, 1),
             ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
