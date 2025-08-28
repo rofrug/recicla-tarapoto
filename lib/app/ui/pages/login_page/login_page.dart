@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
+import 'package:flutter/services.dart'; // 👈 para SystemNavigator.pop()
 import 'package:get/get.dart';
 import 'package:recicla_tarapoto_1/widgets/custom_input_field.dart';
 
@@ -15,16 +15,17 @@ class LoginPage extends GetView<LoginController> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      // 👇 al presionar atrás desde Login, salir de la app
-      onWillPop: () async {
-        SystemNavigator.pop();
-        return false;
+    return PopScope(
+      canPop: false, // bloquea el back por defecto
+      // 👇 reemplazo correcto en 3.22+: incluye didPop y result
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return; // si ya hizo pop, no hacemos nada
+        SystemNavigator.pop(); // salir de la app desde Login
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: true, // Ajuste al abrir el teclado
+        resizeToAvoidBottomInset: true,
         body: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(), // Oculta teclado
+          onTap: () => FocusScope.of(context).unfocus(),
           child: Stack(
             children: [
               // Fondo con gradiente
@@ -87,7 +88,7 @@ class LoginPage extends GetView<LoginController> {
                                         CustomInputField(
                                           hintText: 'Ingresar email',
                                           icon: Icons.email,
-                                          width: double.infinity, // Responsivo
+                                          width: double.infinity,
                                           height: 48,
                                           textStyle: const TextStyle(
                                               color: Colors.white),
@@ -121,8 +122,7 @@ class LoginPage extends GetView<LoginController> {
                                                   hintText:
                                                       'Ingresar Contraseña',
                                                   icon: Icons.lock_outline,
-                                                  obscureText:
-                                                      !visible, // ← toggle
+                                                  obscureText: !visible,
                                                   width: double.infinity,
                                                   height: 48,
                                                   textStyle: const TextStyle(
@@ -171,7 +171,7 @@ class LoginPage extends GetView<LoginController> {
 
                                         const SizedBox(height: 24),
 
-                                        // BOTÓN / LOADING (MISMA LÓGICA)
+                                        // BOTÓN / LOADING
                                         Center(
                                           child: Obx(() {
                                             return controller.isLoading.value
@@ -249,8 +249,7 @@ class LoginPage extends GetView<LoginController> {
                                           ),
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              Get.toNamed(Routes
-                                                  .REGISTER); // 👈 usar constante
+                                              Get.toNamed(Routes.REGISTER);
                                             },
                                         ),
                                       ],

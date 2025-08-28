@@ -30,10 +30,8 @@ class SplashController extends GetxController {
         final bool isLoggedIn = _storage.read('loggedIn') ?? false;
 
         if (isLoggedIn) {
-          // ✅ Reemplaza TODO el stack con HOME
           Get.offAllNamed(Routes.HOME);
         } else {
-          // ✅ Reemplaza TODO el stack con LOGIN
           Get.offAllNamed(Routes.LOGIN);
         }
       });
