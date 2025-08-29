@@ -1,3 +1,9 @@
+# Keys en la raíz del repo (tu caso actual)
+/key.properties
+
+# Keystore específico (por si acaso)
+android/app/upload-keystore.jks
+
 # Miscellaneous
 *.class
 *.log
@@ -41,3 +47,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystore and keys
+android/key.properties
+**/*.jks
+**/*.keystore
